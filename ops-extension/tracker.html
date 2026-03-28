@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OPS Trading Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --background: #0E1116;
+    --card-bg: #151C2C;
+    --text-primary: #EAF0FF;
+    --text-secondary: #A7B0C0;
+    --accent-primary: #A3FF12;
+    --profit-positive: #9DFF00;
+    --profit-negative: #FF4D4D;
+    --border-color: rgba(255,255,255,0.06);
+    --shadow-color: rgba(0,255,0,0.25);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--background);
+    color: var(--text-primary);
+    line-height: 1.4;
+  }
+
+  header {
+    padding: 1em;
+    background: linear-gradient(135deg, #0B0F14, #1C2029);
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--border-color);
+  }
+  header h1 { margin:0; font-size:1.8em; color:var(--accent-primary); font-weight:800; }
+  header p { margin:6px 0 0; color:var(--text-secondary); font-size:0.95em; }
+
+  /* ── Import Banner ── */
+  #importBanner {
+    display: none;
+    margin: 0.8em 1em 0;
+    background: linear-gradient(135deg, rgba(163,255,18,0.1), rgba(163,255,18,0.04));
+    border: 1px solid rgba(163,255,18,0.4);
+    border-radius: 16px;
+    padding: 12px 16px;
+    gap: 14px;
+    align-items: center;
+  }
+  #importBanner.visible { display: flex; }
+  #importBanner img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+  #importBanner .banner-info { flex: 1; }
+  #importBanner .banner-name { font-weight: 900; font-size: 1.05em; color: var(--accent-primary); }
+  #importBanner .banner-details { font-size: 0.82em; color: var(--text-secondary); margin-top: 3px; line-height: 1.6; }
+  #importBanner .banner-price { font-weight: 900; color: var(--accent-primary); }
+  #importBanner .banner-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* ── Stats ── */
+  #statsContainer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 1em;
+    padding: 1em;
+  }
+  .kpi-card {
+    background: linear-gradient(135deg, #151C2C, #0F1522);
+    padding: 14px;
+    border-radius: 18px;
+    box-shadow: 0 0 12px rgba(0,255,0,0.12);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: 0.2s;
+  }
+  .kpi-card:hover { box-shadow: 0 0 18px var(--shadow-color); border-color: rgba(163,255,18,0.5); }
+  .kpi-number { font-size: 1.55em; font-weight: 800; }
+  .kpi-label { font-size: 0.78em; color: var(--text-secondary); }
+  .kpi-sub { font-size: 0.78em; color: rgba(234,240,255,0.85); }
+
+  /* ── Tabs ── */
+  #tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 0 1em;
+    flex-wrap: wrap;
+  }
+  .tab {
+    flex: 1; max-width: 280px;
+    padding: 0.7em 1em;
+    cursor: pointer;
+    border-radius: 14px;
+    font-weight: 800;
+    font-size: 1em;
+    border: 1px solid var(--border-color);
+    background: rgba(255,255,255,0.03);
+    transition: 0.2s;
+    text-align: center;
+    user-select: none;
+  }
+  .tab:hover { background: rgba(255,255,255,0.06); }
+  .tab.active { border-color: rgba(163,255,18,0.5); background: rgba(163,255,18,0.08); color: var(--accent-primary); box-shadow: 0 0 14px rgba(163,255,18,0.12); }
+
+  .section { display: none; padding: 1em; }
+  .section.active { display: block; }
+
+  /* ── Buttons ── */
+  .toolbar { margin-top: 0.5em; display: flex; gap: 0.7em; flex-wrap: wrap; align-items: center; }
+  button {
+    min-height: 44px; padding: 0 1em;
+    font-size: 1em; border: none; border-radius: 16px;
+    cursor: pointer; font-weight: 800; transition: all 0.2s; white-space: nowrap;
+  }
+  button.primary { background: var(--accent-primary); color: #000; }
+  button.primary:hover { box-shadow: 0 0 14px var(--shadow-color); transform: translateY(-1px); }
+  button.secondary { background: transparent; border: 2px solid rgba(163,255,18,0.6); color: var(--accent-primary); }
+  button.secondary:hover { box-shadow: 0 0 10px var(--shadow-color); background: rgba(255,255,255,0.04); transform: translateY(-1px); }
+  button.danger { border: 2px solid rgba(255,77,77,0.8); background: transparent; color: var(--profit-negative); }
+  button.danger:hover { box-shadow: 0 0 12px rgba(255,0,0,0.35); background: rgba(255,77,77,0.08); }
+  button.small { min-height: 36px; padding: 0 0.8em; font-size: 0.9em; border-radius: 14px; }
+  button.futgg {
+    background: linear-gradient(135deg, #1a1f2e, #252d3f);
+    border: 2px solid rgba(100,160,255,0.5);
+    color: #7eb8ff;
+    font-size: 0.88em;
+    min-height: 38px;
+    padding: 0 0.9em;
+    border-radius: 12px;
+  }
+  button.futgg:hover { border-color: rgba(100,160,255,0.9); box-shadow: 0 0 10px rgba(100,160,255,0.25); transform: translateY(-1px); }
+
+  /* ── Inputs ── */
+  .search-row { margin-top: 0.7em; display: flex; gap: 0.7em; flex-wrap: wrap; align-items: center; }
+  .search-row > div { flex: 1; min-width: 220px; }
+  input[type="text"], input[type="number"], input[type="datetime-local"] {
+    width: 100%; padding: 10px 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px; color: #EAF0FF;
+    font-family: 'Inter', sans-serif; font-size: 1em;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus { outline: none; border-color: rgba(163,255,18,0.8); box-shadow: 0 0 10px rgba(163,255,18,0.2); }
+
+  /* ── Table ── */
+  .table-wrap { margin-top: 1em; border-radius: 18px; border: 1px solid var(--border-color); overflow: hidden; background: rgba(255,255,255,0.02); }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: linear-gradient(135deg, #222, #1A1F28); }
+  th, td { padding: 0.7em; border-bottom: 1px solid var(--border-color); text-align: left; font-size: 0.95em; vertical-align: middle; }
+  th { color: rgba(234,240,255,0.9); font-weight: 800; }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+  tbody tr:hover { background: rgba(255,255,255,0.06); }
+  .profit-pos { color: var(--profit-positive); font-weight: 900; }
+  .profit-neg { color: var(--profit-negative); font-weight: 900; }
+  .sortable { cursor: pointer; user-select: none; }
+  .sortable:after { content: " ⇅"; opacity: 0.5; }
+
+  /* ── Player Icon ── */
+  .player-icon {
+    width: 40px; height: 40px;
+    border-radius: 8px; object-fit: contain;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    vertical-align: middle;
+  }
+  .player-icon-placeholder {
+    width: 40px; height: 40px; border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px; vertical-align: middle; color: var(--text-secondary);
+  }
+
+  /* ── Card badge ── */
+  .card-badge {
+    display: inline-block;
+    background: rgba(163,255,18,0.12);
+    border: 1px solid rgba(163,255,18,0.3);
+    color: var(--accent-primary);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 0.75em;
+    font-weight: 800;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* ── Modal ── */
+  #overlay, #sellOverlay {
+    display: none; position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.65);
+    z-index: 999; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal {
+    background: linear-gradient(135deg, #151C2C, #0F1522);
+    padding: 1em; border-radius: 20px;
+    max-width: 500px; width: 100%;
+    box-shadow: 0 0 22px rgba(0,255,0,0.25);
+    border: 1px solid rgba(163,255,18,0.18);
+    display: flex; flex-direction: column; gap: 0.9em;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { margin:0; text-align:center; color:var(--accent-primary); font-weight:900; }
+  .modal .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8em; }
+  .modal .row > div { min-width: 0; }
+  @media (max-width: 520px) { .modal .row { grid-template-columns: 1fr; } }
+  .modal-footer { display: flex; justify-content: center; gap: 0.8em; margin-top: 0.4em; flex-wrap: wrap; }
+  .field-label { font-size: 0.84em; color: var(--text-secondary); margin-bottom: 4px; }
+
+  /* ── Import-Highlight im Modal ── */
+  .imported-card {
+    background: rgba(163,255,18,0.06);
+    border: 1px solid rgba(163,255,18,0.25);
+    border-radius: 14px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .imported-card img {
+    width: 54px; height: 54px; object-fit: contain;
+    border-radius: 8px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .imported-card .ic-info { flex: 1; }
+  .imported-card .ic-name { font-weight: 900; color: var(--accent-primary); font-size: 1em; }
+  .imported-card .ic-meta { font-size: 0.8em; color: var(--text-secondary); margin-top: 2px; }
+  .imported-card .ic-price { font-weight: 900; color: var(--accent-primary); font-size: 0.9em; }
+
+  /* fut.gg row */
+  .futgg-row { display: flex; gap: 0.5em; align-items: center; }
+  .futgg-row input { flex: 1; }
+
+  /* img preview */
+  #imgPreviewWrap {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  #imgPreview {
+    width: 54px; height: 54px; object-fit: contain;
+    border-radius: 8px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1); display: none;
+  }
+  #imgPreviewText { font-size: 0.82em; color: var(--text-secondary); }
+
+  /* sell modal profit */
+  #profitDisplay {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color);
+    padding: 10px 12px; border-radius: 16px;
+    display: flex; flex-direction: column; gap: 0.5em;
+  }
+  #profitDisplay div { display: flex; justify-content: space-between; gap: 10px; }
+  #nettoProfit { font-weight: 900; font-size: 1.15em; }
+
+  .muted { color: var(--text-secondary); }
+
+  /* ── Leaderboard ── */
+  .leaderboard-grid { display: grid; grid-template-columns: 1fr; gap: 1em; margin-top: 1em; }
+  .lb-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 18px; padding: 12px; }
+  .lb-title { font-weight: 900; color: rgba(234,240,255,0.92); margin-bottom: 10px; }
+  .lb-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 8px; border-bottom: 1px solid var(--border-color); }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row b { color: var(--accent-primary); }
+
+  /* ── Extension CTA ── */
+  .ext-cta {
+    background: rgba(100,160,255,0.06);
+    border: 1px solid rgba(100,160,255,0.2);
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: 0.82em;
+    color: #7eb8ff;
+    line-height: 1.6;
+  }
+  .ext-cta b { color: #a8d4ff; }
+
+  input[type="datetime-local"] {
+    width: 100%; max-width: 100%; min-width: 0;
+    box-sizing: border-box; -webkit-appearance: none;
+  }
+  @supports (-webkit-touch-callout: none) {
+    input[type="datetime-local"] { font-size: 16px; }
+  }
+
+  footer {
+    padding: 18px 12px; margin-top: 20px;
+    border-top: 1px solid var(--border-color);
+    color: rgba(234,240,255,0.75); text-align: center; font-size: 0.9em;
+  }
+  footer a { color: var(--accent-primary); text-decoration: none; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OPS Trading Tracker</h1>
+  <p>Overpriced Selling Trading • localStorage • EA tax auto • fut.gg Extension</p>
+</header>
+
+<!-- Import Banner (erscheint wenn Extension Daten liefert) -->
+<div id="importBanner">
+  <img id="bannerImg" src="" alt=""/>
+  <div class="banner-info">
+    <div class="banner-name" id="bannerName">—</div>
+    <div class="banner-details">
+      Typ: <span id="bannerType">—</span> &nbsp;|&nbsp;
+      Preis: <span class="banner-price" id="bannerPrice">—</span>
+    </div>
+    <div class="banner-details" id="bannerAge" style="color:#666;font-size:11px"></div>
+  </div>
+  <div class="banner-actions">
+    <button class="primary small" onclick="useBannerData()">⚡ Add Trade</button>
+    <button class="secondary small" onclick="dismissBanner()">✕</button>
+  </div>
+</div>
+
+<div id="statsContainer"></div>
+
+<div id="tabs">
+  <div class="tab active" id="tabPortfolio">Open Trades</div>
+  <div class="tab" id="tabHistory">History</div>
+  <div class="tab" id="tabLeaderboard">Leaderboard</div>
+</div>
+
+<!-- Open Trades -->
+<div class="section active" id="sectionPortfolio">
+  <div class="toolbar">
+    <button class="primary" onclick="showTradeModal()">Add Buy</button>
+    <button class="secondary" onclick="exportData()">Backup</button>
+    <button class="secondary" onclick="document.getElementById('importFile').click()">Import Backup</button>
+    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+    <button class="danger" onclick="resetAll()">Delete All</button>
+  </div>
+  <div class="search-row">
+    <div><input type="text" id="searchOpen" placeholder="Search open trades (player / note)" oninput="renderOpenTrades()"></div>
+  </div>
+  <div class="table-wrap">
+    <table id="openTradesTable">
+      <thead>
+        <tr>
+          <th style="width:50px;"></th>
+          <th class="sortable" onclick="setOpenSort('player')">Player</th>
+          <th class="sortable" onclick="setOpenSort('buyPrice')">Buy Price</th>
+          <th class="sortable" onclick="setOpenSort('buyDate')">Buy Date</th>
+          <th>Type</th>
+          <th>Note</th>
+          <th style="width:280px;">Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- History -->
+<div class="section" id="sectionHistory">
+  <div class="toolbar">
+    <span class="muted"><b>Filter (Sell Date):</b></span>
+    <button class="secondary small" onclick="filterHistory('today')">Today</button>
+    <button class="secondary small" onclick="filterHistory('7days')">Last 7 Days</button>
+    <button class="secondary small" onclick="filterHistory('30days')">Last 30 Days</button>
+    <button class="secondary small" onclick="filterHistory('thisWeek')">This Week</button>
+    <button class="secondary small" onclick="filterHistory('thisMonth')">This Month</button>
+    <button class="secondary small" onclick="filterHistory('all')">All</button>
+    <button class="secondary small" onclick="sortHistory('profit')">Sort: Profit</button>
+    <button class="secondary small" onclick="sortHistory('date')">Sort: Date</button>
+  </div>
+  <div class="search-row">
+    <div><input type="text" id="searchHistory" placeholder="Search history (player / note)" oninput="renderHistory()"></div>
+  </div>
+  <div class="table-wrap">
+    <table id="historyTable">
+      <thead>
+        <tr>
+          <th style="width:50px;"></th>
+          <th>Player</th>
+          <th>Buy Price</th>
+          <th>Buy Date</th>
+          <th>Sell Price</th>
+          <th>Sell Date</th>
+          <th>Net Profit</th>
+          <th>Note</th>
+          <th style="width:120px;">Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Leaderboard -->
+<div class="section" id="sectionLeaderboard">
+  <div class="toolbar">
+    <span class="muted"><b>Range:</b></span>
+    <button class="secondary small" onclick="setLeaderboardRange('today')">Today</button>
+    <button class="secondary small" onclick="setLeaderboardRange('7days')">Last 7 Days</button>
+    <button class="secondary small" onclick="setLeaderboardRange('30days')">Last 30 Days</button>
+    <button class="secondary small" onclick="setLeaderboardRange('all')">All</button>
+  </div>
+  <div class="leaderboard-grid">
+    <div class="lb-card"><div class="lb-title">Avg Sell Duration</div><div id="lbDuration"></div></div>
+    <div class="lb-card"><div class="lb-title">Most Sold Players</div><div id="lbMostSold"></div></div>
+    <div class="lb-card"><div class="lb-title">Most Profitable Players</div><div id="lbMostProfit"></div></div>
+  </div>
+</div>
+
+<!-- Buy Modal -->
+<div id="overlay">
+  <div class="modal" id="tradeModal">
+    <h3 id="tradeFormTitle">Add Trade</h3>
+
+    <!-- Extension Import Preview (sichtbar wenn Daten vorhanden) -->
+    <div id="importedCardPreview" style="display:none" class="imported-card">
+      <img id="modalImportImg" src="" alt="" onerror="this.style.display='none'"/>
+      <div class="ic-info">
+        <div class="ic-name" id="modalImportName">—</div>
+        <div class="ic-meta">Typ: <span id="modalImportType">—</span></div>
+        <div class="ic-price">Live-Preis: <span id="modalImportPrice">—</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-label">Player name:</div>
+      <input type="text" id="playerName" placeholder="e.g. Mbappé"/>
+    </div>
+
+    <div>
+      <div class="field-label">fut.gg – Karte suchen &amp; Bild-URL einfügen:</div>
+      <div class="futgg-row">
+        <input type="text" id="cardImageUrl" placeholder="Bild-URL (optional)" oninput="updateImgPreview()"/>
+        <button class="futgg" onclick="openFutGG()">🔍 fut.gg</button>
+      </div>
+    </div>
+
+    <div id="imgPreviewWrap">
+      <img id="imgPreview" src="" alt="" onerror="this.style.display='none'" onload="this.style.display='block'"/>
+      <span id="imgPreviewText">Tipp: Rechtsklick auf Kartenbild auf fut.gg → „Bildadresse kopieren" → hier einfügen.</span>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="field-label">Kartentyp (z.B. TOTY, IF):</div>
+        <input type="text" id="cardType" placeholder="z.B. Gold, IF, TOTY"/>
+      </div>
+      <div>
+        <div class="field-label">Live-Preis (von fut.gg):</div>
+        <input type="number" id="livePrice" placeholder="Coins (optional)"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="field-label">Buy price:</div>
+        <input type="number" id="buyPrice" step="1" placeholder="Coins"/>
+      </div>
+      <div>
+        <div class="field-label">Buy date / time:</div>
+        <input type="datetime-local" id="buyDate"/>
+      </div>
+    </div>
+    <div>
+      <div class="field-label">Note:</div>
+      <input type="text" id="note" placeholder="optional"/>
+    </div>
+    <div class="modal-footer">
+      <button class="primary" onclick="saveTrade()">Save</button>
+      <button class="secondary" onclick="closeTradeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sell Modal -->
+<div id="sellOverlay">
+  <div class="modal" id="sellModal">
+    <h3>Complete Sale</h3>
+    <div class="row">
+      <div>
+        <label>Sell price:</label>
+        <input type="number" id="sellPrice" step="1" oninput="updateSellCalc()" placeholder="Coins"/>
+      </div>
+      <div>
+        <label>Sell date / time:</label>
+        <input type="datetime-local" id="sellDate" onchange="updateSellCalc()"/>
+      </div>
+    </div>
+    <div id="profitDisplay">
+      <div><span>Gross profit:</span><span id="bruttoProfit">0</span></div>
+      <div><span>EA tax (5%):</span><span id="eaTax">0</span></div>
+      <div><strong>Net profit:</strong><span id="nettoProfit" class="profit-pos">0</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="primary" onclick="confirmSell()">Sell</button>
+      <button class="secondary" onclick="closeSellModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b>Imprint</b> • Made by easy • Discord: <a href="https://discord.gg/zR5zJS46" target="_blank" rel="noopener">Click here</a>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════
+   STORAGE & STATE
+═══════════════════════════════════════════ */
+const STORAGE_KEY = "uev_trading_tracker_v2";
+let trades = { offene: [], abgeschlossen: [] };
+let currentTradeId = null;
+let currentSellTradeId = null;
+let filterMode = 'all';
+let sortMode = 'date';
+let openSort = { key: 'buyDate', dir: 'desc' };
+let leaderboardRange = 'all';
+let pendingImport = null; // Daten von der Extension
+
+function nowLocalISO() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0,16);
+}
+function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(trades)); }
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const p = JSON.parse(raw);
+    if (p && Array.isArray(p.offene) && Array.isArray(p.abgeschlossen)) trades = p;
+  } catch(e) { console.warn("Load failed", e); }
+}
+function resetAll() {
+  if (!confirm("Delete ALL trades?")) return;
+  trades = { offene: [], abgeschlossen: [] };
+  saveData(); renderAll();
+}
+
+/* ═══════════════════════════════════════════
+   EXTENSION BRIDGE
+   Liest chrome.storage.local falls Extension installiert ist
+═══════════════════════════════════════════ */
+function checkExtensionData() {
+  if (typeof chrome === 'undefined' || !chrome.storage) return;
+
+  chrome.storage.local.get(['ops_import_data'], (result) => {
+    const data = result.ops_import_data;
+    if (!data || !data.name) return;
+
+    // Nur anzeigen wenn < 5 Minuten alt
+    const age = Date.now() - (data.timestamp || 0);
+    if (age > 5 * 60 * 1000) return;
+
+    pendingImport = data;
+    showImportBanner(data);
+  });
+}
+
+function showImportBanner(data) {
+  const banner = document.getElementById('importBanner');
+  const img = document.getElementById('bannerImg');
+  const nameEl = document.getElementById('bannerName');
+  const typeEl = document.getElementById('bannerType');
+  const priceEl = document.getElementById('bannerPrice');
+  const ageEl = document.getElementById('bannerAge');
+
+  img.src = data.imageUrl || '';
+  img.style.display = data.imageUrl ? 'block' : 'none';
+  nameEl.textContent = data.name || '—';
+  typeEl.textContent = data.cardType || '—';
+  priceEl.textContent = data.price ? formatCoins(data.price) + ' Coins' : '—';
+
+  const mins = Math.floor((Date.now() - data.timestamp) / 60000);
+  ageEl.textContent = mins < 1 ? 'Gerade importiert' : `vor ${mins} Min importiert`;
+
+  banner.classList.add('visible');
+}
+
+function dismissBanner() {
+  document.getElementById('importBanner').classList.remove('visible');
+  // Extension-Daten löschen
+  if (typeof chrome !== 'undefined' && chrome.storage) {
+    chrome.storage.local.remove('ops_import_data');
+  }
+  pendingImport = null;
+}
+
+function useBannerData() {
+  if (!pendingImport) return;
+  showTradeModal(pendingImport);
+  dismissBanner();
+}
+
+/* ═══════════════════════════════════════════
+   FUT.GG
+═══════════════════════════════════════════ */
+function openFutGG() {
+  const name = document.getElementById('playerName').value.trim();
+  const q = encodeURIComponent(name || '');
+  window.open(`https://www.fut.gg/fc26/players/?search=${q}`, '_blank');
+}
+
+function updateImgPreview() {
+  const url = document.getElementById('cardImageUrl').value.trim();
+  const img = document.getElementById('imgPreview');
+  const txt = document.getElementById('imgPreviewText');
+  if (url) {
+    img.src = url;
+    txt.textContent = 'Vorschau ↑';
+  } else {
+    img.style.display = 'none';
+    txt.textContent = 'Tipp: Rechtsklick auf Kartenbild auf fut.gg → „Bildadresse kopieren" → hier einfügen.';
+  }
+}
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+function uid() { return crypto.randomUUID ? crypto.randomUUID() : Date.now()+"-"+Math.random(); }
+function formatCoins(v) { const n=Number(v); return isFinite(n) ? Math.round(n).toLocaleString("en-US") : "0"; }
+function formatDateTime(v) { if(!v) return ""; try { return new Date(v).toLocaleString(); } catch { return v; } }
+function normalize(s) { return (s||"").toString().toLowerCase().trim(); }
+function includesAny(t, q) {
+  const qq = normalize(q); if(!qq) return true;
+  return normalize(t.spieler).includes(qq) || normalize(t.notiz).includes(qq);
+}
+function isSameDay(a,b) { return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+function startOfWeek(d) { const x=new Date(d); const day=x.getDay(); x.setDate(x.getDate()+(day===0?-6:1-day)); x.setHours(0,0,0,0); return x; }
+function startOfMonth(d) { const x=new Date(d); x.setDate(1); x.setHours(0,0,0,0); return x; }
+function daysBetween(a,b) { return Math.abs(b-a)/(1000*60*60*24); }
+function durationMs(t) { const b=new Date(t.kaufDatum),s=new Date(t.sellDate); if(isNaN(b)||isNaN(s)||s<b) return null; return s-b; }
+function inRangeBySellDate(t, r) {
+  const now=new Date(); const d=new Date(t.sellDate); if(isNaN(d.getTime())) return false;
+  if(r==='all') return true;
+  if(r==='today') return isSameDay(d,now);
+  if(r==='7days') { const s=new Date(now); s.setDate(s.getDate()-7); return d>=s&&d<=now; }
+  if(r==='30days') { const s=new Date(now); s.setDate(s.getDate()-30); return d>=s&&d<=now; }
+  return true;
+}
+
+/* ═══════════════════════════════════════════
+   PLAYER ICON
+═══════════════════════════════════════════ */
+function renderPlayerIcon(url) {
+  if (url) return `<img class="player-icon" src="${url}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="player-icon-placeholder" style="display:none">👤</span>`;
+  return `<span class="player-icon-placeholder">👤</span>`;
+}
+
+/* ═══════════════════════════════════════════
+   KPI
+═══════════════════════════════════════════ */
+function computeMostSoldPlayer(list) {
+  const m={}; list.forEach(t=>{const n=t.spieler||"?"; m[n]=(m[n]||0)+1;});
+  let best=null; Object.keys(m).forEach(n=>{if(!best||m[n]>best.count) best={name:n,count:m[n]};});
+  return best;
+}
+function computeOldestOpenTrade(list) {
+  if(!list.length) return null;
+  return list.reduce((a,b)=>new Date(a.kaufDatum)<new Date(b.kaufDatum)?a:b);
+}
+function computeTodayProfit() { const now=new Date(); return trades.abgeschlossen.filter(t=>isSameDay(new Date(t.sellDate),now)).reduce((s,t)=>s+(Number(t.nettoProfit)||0),0); }
+function computeThisWeekProfit() { const now=new Date(),s=startOfWeek(now); return trades.abgeschlossen.filter(t=>{const d=new Date(t.sellDate);return d>=s&&d<=now;}).reduce((s,t)=>s+(Number(t.nettoProfit)||0),0); }
+function computeDailyAvg() {
+  const m={}; trades.abgeschlossen.forEach(t=>{const d=new Date(t.sellDate);if(isNaN(d.getTime()))return;const k=d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate();m[k]=(m[k]||0)+(Number(t.nettoProfit)||0);});
+  const keys=Object.keys(m); if(!keys.length) return 0; return keys.reduce((s,k)=>s+m[k],0)/keys.length;
+}
+function computeWeeklyAvg() {
+  const m={}; trades.abgeschlossen.forEach(t=>{const d=new Date(t.sellDate);if(isNaN(d.getTime()))return;const ws=startOfWeek(d);const k=ws.getFullYear()+"-"+ws.getMonth()+"-"+ws.getDate();m[k]=(m[k]||0)+(Number(t.nettoProfit)||0);});
+  const keys=Object.keys(m); if(!keys.length) return 0; return keys.reduce((s,k)=>s+m[k],0)/keys.length;
+}
+function formatHoldTime(ms) {
+  const h=Math.floor(ms/(1000*60*60)); const d=Math.floor(h/24); const rh=h%24;
+  if(d<=0) return `${h}h`; if(rh<=0) return `${d}d`; return `${d}d ${rh}h`;
+}
+function computeAvgHoldMs() {
+  const durations=trades.abgeschlossen.map(t=>durationMs(t)).filter(ms=>ms!==null&&ms>=0);
+  if(!durations.length) return null; return durations.reduce((a,b)=>a+b,0)/durations.length;
+}
+function computeAvgSalesDay() {
+  const m={}; trades.abgeschlossen.forEach(t=>{const d=new Date(t.sellDate);if(isNaN(d.getTime()))return;const k=d.getFullYear()+"-"+d.getMonth()+"-"+d.getDate();m[k]=(m[k]||0)+1;});
+  const days=Object.keys(m).length; if(!days) return 0; return Object.values(m).reduce((s,n)=>s+n,0)/days;
+}
+function computeBestROI(list) {
+  const m={}; list.forEach(t=>{const b=Number(t.kaufpreis)||0;if(b<=0)return;const roi=(Number(t.nettoProfit)||0)/b;const n=t.spieler||"?";if(!m[n])m[n]={total:0,n:0};m[n].total+=roi;m[n].n++;});
+  let best=null; Object.keys(m).forEach(n=>{const avg=m[n].total/m[n].n;if(!best||avg>best.avg)best={name:n,avg,n:m[n].n};});
+  return best;
+}
+
+function renderStats() {
+  const off=trades.offene, ab=trades.abgeschlossen;
+  const bound=off.reduce((s,t)=>s+(Number(t.kaufpreis)||0),0);
+  const totalP=ab.reduce((s,t)=>s+(Number(t.nettoProfit)||0),0);
+  const avgP=ab.length?totalP/ab.length:0;
+  const todayP=computeTodayProfit(), weekP=computeThisWeekProfit();
+  const dailyAvg=computeDailyAvg(), weeklyAvg=computeWeeklyAvg();
+  const mostSold=computeMostSoldPlayer(ab), oldest=computeOldestOpenTrade(off);
+  const bestROI=computeBestROI(ab);
+  const avgHoldMs=computeAvgHoldMs();
+  const avgSalesDay=computeAvgSalesDay();
+
+  document.getElementById('statsContainer').innerHTML = `
+    <div class="kpi-card"><div class="kpi-number">${off.length}</div><div class="kpi-label">Open trades</div><div class="kpi-sub">Bound: <b>${formatCoins(bound)}</b></div></div>
+    <div class="kpi-card"><div class="kpi-number">${ab.length}</div><div class="kpi-label">Closed trades</div><div class="kpi-sub">Avg/trade: <b>${formatCoins(avgP)}</b></div></div>
+    <div class="kpi-card"><div class="kpi-number ${totalP>=0?'profit-pos':'profit-neg'}">${formatCoins(totalP)}</div><div class="kpi-label">Total net profit</div><div class="kpi-sub">Daily avg: <b>${formatCoins(dailyAvg)}</b></div></div>
+    <div class="kpi-card"><div class="kpi-number ${todayP>=0?'profit-pos':'profit-neg'}">${formatCoins(todayP)}</div><div class="kpi-label">Profit today</div><div class="kpi-sub">Daily avg: <b>${formatCoins(dailyAvg)}</b></div></div>
+    <div class="kpi-card"><div class="kpi-number ${weekP>=0?'profit-pos':'profit-neg'}">${formatCoins(weekP)}</div><div class="kpi-label">Profit this week</div><div class="kpi-sub">Weekly avg: <b>${formatCoins(weeklyAvg)}</b></div></div>
+    <div class="kpi-card"><div class="kpi-number">${mostSold?mostSold.count:"—"}</div><div class="kpi-label">Most sold player</div><div class="kpi-sub">${mostSold?`<b>${mostSold.name}</b>`:"No data"}</div></div>
+    <div class="kpi-card"><div class="kpi-number">${oldest?Math.floor(daysBetween(new Date(oldest.kaufDatum),new Date()))+"d":"—"}</div><div class="kpi-label">Oldest open trade</div><div class="kpi-sub">${oldest?`<b>${oldest.spieler}</b>`:"None"}</div></div>
+    <div class="kpi-card"><div class="kpi-number">${bestROI?(bestROI.avg*100).toFixed(2)+"%":"—"}</div><div class="kpi-label">Best avg ROI</div><div class="kpi-sub">${bestROI?`<b>${bestROI.name}</b> (${bestROI.n})`:"No data"}</div></div>
+    <div class="kpi-card"><div class="kpi-number">${avgHoldMs?formatHoldTime(avgHoldMs):"—"}</div><div class="kpi-label">Avg hold time</div><div class="kpi-sub">Sell Date – Buy Date</div></div>
+    <div class="kpi-card"><div class="kpi-number">${avgSalesDay.toFixed(2)}</div><div class="kpi-label">Avg sales / day</div><div class="kpi-sub">Avg/week: <b>${(avgSalesDay*7).toFixed(2)}</b></div></div>
+  `;
+}
+
+/* ═══════════════════════════════════════════
+   OPEN TRADES
+═══════════════════════════════════════════ */
+function setOpenSort(key) {
+  if(openSort.key===key) openSort.dir=openSort.dir==='asc'?'desc':'asc';
+  else { openSort.key=key; openSort.dir='asc'; }
+  renderOpenTrades();
+}
+function sortOpen(list) {
+  const dir=openSort.dir==='asc'?1:-1;
+  return [...list].sort((a,b)=>{
+    if(openSort.key==='player') return normalize(a.spieler).localeCompare(normalize(b.spieler))*dir;
+    if(openSort.key==='buyPrice') return ((Number(a.kaufpreis)||0)-(Number(b.kaufpreis)||0))*dir;
+    return (new Date(a.kaufDatum)-new Date(b.kaufDatum))*dir;
+  });
+}
+function renderOpenTrades() {
+  const tbody = document.querySelector('#openTradesTable tbody');
+  const q = document.getElementById("searchOpen").value;
+  let list = sortOpen(trades.offene.filter(t=>includesAny(t,q)));
+  tbody.innerHTML = '';
+  if(!list.length) { tbody.innerHTML=`<tr><td colspan="7" class="muted">No open trades found.</td></tr>`; return; }
+  list.forEach(t => {
+    const livePriceHtml = t.livePrice ? `<br><span style="font-size:0.78em;color:#A3FF12">Live: ${formatCoins(t.livePrice)}</span>` : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${renderPlayerIcon(t.cardImageUrl)}</td>
+      <td><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}${livePriceHtml}</td>
+      <td>${formatCoins(t.kaufpreis)}</td>
+      <td>${formatDateTime(t.kaufDatum)}</td>
+      <td>${t.cardType||'—'}</td>
+      <td>${t.notiz||''}</td>
+      <td>
+        <button class="secondary small" onclick="showSellModal('${t.id}')">Sell</button>
+        <button class="secondary small" onclick="editTrade('${t.id}')">Edit</button>
+        <button class="danger small" onclick="deleteTrade('${t.id}')">Delete</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ═══════════════════════════════════════════
+   HISTORY
+═══════════════════════════════════════════ */
+function getFilteredHistory() {
+  const q=document.getElementById("searchHistory").value;
+  const now=new Date();
+  let list=trades.abgeschlossen.filter(t=>includesAny(t,q)).filter(t=>{
+    const d=new Date(t.sellDate); if(isNaN(d.getTime())) return false;
+    if(filterMode==='all') return true;
+    if(filterMode==='today') return isSameDay(d,now);
+    if(filterMode==='7days'){const s=new Date(now);s.setDate(s.getDate()-7);return d>=s&&d<=now;}
+    if(filterMode==='30days'){const s=new Date(now);s.setDate(s.getDate()-30);return d>=s&&d<=now;}
+    if(filterMode==='thisWeek'){return d>=startOfWeek(now)&&d<=now;}
+    if(filterMode==='thisMonth'){return d>=startOfMonth(now)&&d<=now;}
+    return true;
+  });
+  if(sortMode==='profit') list.sort((a,b)=>(Number(b.nettoProfit)||0)-(Number(a.nettoProfit)||0));
+  else list.sort((a,b)=>new Date(b.sellDate)-new Date(a.sellDate));
+  return list;
+}
+function renderHistory() {
+  const tbody=document.querySelector('#historyTable tbody');
+  const list=getFilteredHistory();
+  tbody.innerHTML='';
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="9" class="muted">No trades found.</td></tr>`;return;}
+  list.forEach(t=>{
+    const p=Number(t.nettoProfit)||0;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${renderPlayerIcon(t.cardImageUrl)}</td>
+      <td><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}</td>
+      <td>${formatCoins(t.kaufpreis)}</td>
+      <td>${formatDateTime(t.kaufDatum)}</td>
+      <td>${formatCoins(t.sellPrice)}</td>
+      <td>${formatDateTime(t.sellDate)}</td>
+      <td class="${p>=0?'profit-pos':'profit-neg'}">${formatCoins(p)}</td>
+      <td>${t.notiz||''}</td>
+      <td><button class="secondary small" onclick="reopenTrade('${t.id}')">Reopen</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+function filterHistory(m){filterMode=m;renderHistory();renderStats();renderLeaderboard();}
+function sortHistory(m){sortMode=m;renderHistory();}
+
+/* ═══════════════════════════════════════════
+   LEADERBOARD
+═══════════════════════════════════════════ */
+function setLeaderboardRange(r){leaderboardRange=r;renderLeaderboard();}
+function groupByPlayer(list){const m={};list.forEach(t=>{const n=t.spieler||"?";if(!m[n])m[n]=[];m[n].push(t);});return m;}
+function renderLeaderboard(){
+  const list=trades.abgeschlossen.filter(t=>inRangeBySellDate(t,leaderboardRange));
+  const byP=groupByPlayer(list);
+  const durArr=Object.keys(byP).map(n=>{const dur=byP[n].map(t=>durationMs(t)).filter(ms=>ms!==null&&ms>=0);if(!dur.length)return null;return{name:n,avgMs:dur.reduce((a,b)=>a+b,0)/dur.length,n:dur.length};}).filter(Boolean).sort((a,b)=>a.avgMs-b.avgMs).slice(0,10);
+  const soldArr=Object.keys(byP).map(n=>({name:n,count:byP[n].length})).sort((a,b)=>b.count-a.count).slice(0,10);
+  const profArr=Object.keys(byP).map(n=>({name:n,profit:byP[n].reduce((s,t)=>s+(Number(t.nettoProfit)||0),0)})).sort((a,b)=>b.profit-a.profit).slice(0,10);
+  document.getElementById('lbDuration').innerHTML=durArr.length?durArr.map((x,i)=>`<div class="lb-row"><span>#${i+1} <b>${x.name}</b></span><span>${Math.round(x.avgMs/(1000*60*60))}h avg (${x.n})</span></div>`).join(''):`<div class="muted">No data.</div>`;
+  document.getElementById('lbMostSold').innerHTML=soldArr.length?soldArr.map((x,i)=>`<div class="lb-row"><span>#${i+1} <b>${x.name}</b></span><span>${x.count} sales</span></div>`).join(''):`<div class="muted">No data.</div>`;
+  document.getElementById('lbMostProfit').innerHTML=profArr.length?profArr.map((x,i)=>`<div class="lb-row"><span>#${i+1} <b>${x.name}</b></span><span class="${x.profit>=0?'profit-pos':'profit-neg'}">${formatCoins(x.profit)}</span></div>`).join(''):`<div class="muted">No data.</div>`;
+}
+
+/* ═══════════════════════════════════════════
+   BUY MODAL
+═══════════════════════════════════════════ */
+function showTradeModal(prefill) {
+  document.getElementById('tradeFormTitle').textContent = 'Add Trade';
+  document.getElementById('playerName').value = prefill?.name || '';
+  document.getElementById('buyPrice').value = '';
+  document.getElementById('buyDate').value = nowLocalISO();
+  document.getElementById('note').value = '';
+  document.getElementById('cardImageUrl').value = prefill?.imageUrl || '';
+  document.getElementById('cardType').value = prefill?.cardType || '';
+  document.getElementById('livePrice').value = prefill?.price || '';
+  document.getElementById('imgPreview').style.display = 'none';
+  document.getElementById('imgPreviewText').textContent = 'Tipp: Rechtsklick auf Kartenbild auf fut.gg → „Bildadresse kopieren" → hier einfügen.';
+
+  // Import-Preview im Modal
+  const preview = document.getElementById('importedCardPreview');
+  if (prefill && prefill.name) {
+    document.getElementById('modalImportImg').src = prefill.imageUrl || '';
+    document.getElementById('modalImportImg').style.display = prefill.imageUrl ? 'block' : 'none';
+    document.getElementById('modalImportName').textContent = prefill.name;
+    document.getElementById('modalImportType').textContent = prefill.cardType || '—';
+    document.getElementById('modalImportPrice').textContent = prefill.price ? formatCoins(prefill.price) + ' Coins' : '—';
+    preview.style.display = 'flex';
+  } else {
+    preview.style.display = 'none';
+  }
+
+  if (prefill?.imageUrl) updateImgPreview();
+
+  currentTradeId = null;
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function closeTradeModal() { document.getElementById('overlay').style.display='none'; }
+
+function saveTrade() {
+  const player = document.getElementById('playerName').value.trim();
+  const buyPrice = parseFloat(document.getElementById('buyPrice').value);
+  const buyDatum = document.getElementById('buyDate').value;
+  const notiz = document.getElementById('note').value;
+  const cardImageUrl = document.getElementById('cardImageUrl').value.trim();
+  const cardType = document.getElementById('cardType').value.trim();
+  const livePrice = parseFloat(document.getElementById('livePrice').value) || null;
+
+  if(!player||isNaN(buyPrice)||!buyDatum){alert('Please fill player, buy price and buy date.');return;}
+
+  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, cardImageUrl, cardType, livePrice };
+
+  if(currentTradeId) {
+    const idx=trades.offene.findIndex(t=>t.id===currentTradeId);
+    if(idx>=0) trades.offene[idx]={...trades.offene[idx],...tradeData};
+  } else {
+    trades.offene.push({id:uid(),...tradeData});
+  }
+
+  saveData(); closeTradeModal(); renderAll();
+}
+
+function editTrade(id) {
+  const t=trades.offene.find(tr=>tr.id===id); if(!t) return;
+  document.getElementById('tradeFormTitle').textContent='Edit Trade';
+  document.getElementById('playerName').value=t.spieler;
+  document.getElementById('buyPrice').value=t.kaufpreis;
+  document.getElementById('buyDate').value=t.kaufDatum;
+  document.getElementById('note').value=t.notiz||'';
+  document.getElementById('cardImageUrl').value=t.cardImageUrl||'';
+  document.getElementById('cardType').value=t.cardType||'';
+  document.getElementById('livePrice').value=t.livePrice||'';
+  document.getElementById('importedCardPreview').style.display='none';
+  currentTradeId=t.id;
+  updateImgPreview();
+  document.getElementById('overlay').style.display='flex';
+}
+
+function deleteTrade(id){if(!confirm('Delete this trade?'))return;trades.offene=trades.offene.filter(t=>t.id!==id);saveData();renderAll();}
+
+/* ═══════════════════════════════════════════
+   SELL MODAL
+═══════════════════════════════════════════ */
+function showSellModal(id){currentSellTradeId=id;document.getElementById('sellPrice').value='';document.getElementById('sellDate').value=nowLocalISO();document.getElementById('sellOverlay').style.display='flex';updateSellCalc();}
+function closeSellModal(){document.getElementById('sellOverlay').style.display='none';currentSellTradeId=null;}
+function updateSellCalc(){
+  const t=trades.offene.find(x=>x.id===currentSellTradeId);
+  const sp=parseFloat(document.getElementById('sellPrice').value);
+  if(!t||isNaN(sp)){['bruttoProfit','eaTax','nettoProfit'].forEach(id=>document.getElementById(id).textContent=formatCoins(0));document.getElementById('nettoProfit').className='profit-pos';return;}
+  const buy=Number(t.kaufpreis)||0,brutto=sp-buy,tax=sp*0.05,netto=brutto-tax;
+  document.getElementById('bruttoProfit').textContent=formatCoins(brutto);
+  document.getElementById('eaTax').textContent=formatCoins(tax);
+  const el=document.getElementById('nettoProfit');el.textContent=formatCoins(netto);el.className=netto>=0?'profit-pos':'profit-neg';
+}
+function confirmSell(){
+  const t=trades.offene.find(x=>x.id===currentSellTradeId);
+  const sp=parseFloat(document.getElementById('sellPrice').value);
+  const sd=document.getElementById('sellDate').value;
+  if(!t||isNaN(sp)||!sd){alert('Please fill sell price and sell date.');return;}
+  const buy=Number(t.kaufpreis)||0,brutto=sp-buy,tax=sp*0.05,netto=brutto-tax;
+  trades.offene=trades.offene.filter(x=>x.id!==t.id);
+  trades.abgeschlossen.push({...t,sellPrice:sp,sellDate:sd,bruttoProfit:brutto,eaTax:tax,nettoProfit:netto});
+  saveData();closeSellModal();renderAll();
+}
+
+/* ═══════════════════════════════════════════
+   REOPEN
+═══════════════════════════════════════════ */
+function reopenTrade(id){
+  const t=trades.abgeschlossen.find(x=>x.id===id);if(!t)return;if(!confirm("Reopen?"))return;
+  trades.abgeschlossen=trades.abgeschlossen.filter(x=>x.id!==id);
+  const o={...t};delete o.sellPrice;delete o.sellDate;delete o.bruttoProfit;delete o.eaTax;delete o.nettoProfit;
+  trades.offene.push(o);saveData();renderAll();
+}
+
+/* ═══════════════════════════════════════════
+   IMPORT / EXPORT
+═══════════════════════════════════════════ */
+function exportData(){const blob=new Blob([JSON.stringify(trades,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='ops_trades_backup.json';a.click();URL.revokeObjectURL(url);}
+function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d||!Array.isArray(d.offene)||!Array.isArray(d.abgeschlossen)){alert('Invalid format.');return;}trades=d;saveData();renderAll();alert("Backup imported!");}catch{alert('Import failed.');}};r.readAsText(f);}
+
+/* ═══════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════ */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    if(tab.id==='tabPortfolio') document.getElementById('sectionPortfolio').classList.add('active');
+    else if(tab.id==='tabHistory') document.getElementById('sectionHistory').classList.add('active');
+    else document.getElementById('sectionLeaderboard').classList.add('active');
+  };
+});
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+function renderAll(){renderStats();renderOpenTrades();renderHistory();renderLeaderboard();}
+
+window.onload=()=>{
+  loadData();
+  renderAll();
+  // Extension Daten prüfen
+  checkExtensionData();
+  // Alle 3 Sekunden prüfen ob neue Daten von Extension kommen
+  setInterval(checkExtensionData, 3000);
+};
+
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeTradeModal();closeSellModal();}});
+</script>
+</body>
+</html>

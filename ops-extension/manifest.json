@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "OPS Trading Tracker – fut.gg Import",
+  "version": "1.0",
+  "description": "Liest Spielerdaten von fut.gg aus und überträgt sie ins OPS Trading Tracker Tool.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.fut.gg/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.fut.gg/players/*",
+        "https://www.fut.gg/26/players/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "OPS Tracker"
+  },
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

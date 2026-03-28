@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OPS Trading Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+<header>
+  <h1>OPS Trading Tracker</h1>
+  <p>Overpriced Selling Trading • localStorage • EA tax auto • fut.gg Extension</p>
+</header>
+
+<!-- Import Banner (erscheint wenn Extension Daten liefert) -->
+<div id="importBanner">
+  <img id="bannerImg" src="" alt=""/>
+  <div class="banner-info">
+    <div class="banner-name" id="bannerName">—</div>
+    <div class="banner-details">
+      Typ: <span id="bannerType">—</span> &nbsp;|&nbsp;
+      Preis: <span class="banner-price" id="bannerPrice">—</span>
+    </div>
+    <div class="banner-details" id="bannerAge" style="color:#666;font-size:11px"></div>
+  </div>
+  <div class="banner-actions">
+    <button class="primary small" onclick="useBannerData()">⚡ Add Trade</button>
+    <button class="secondary small" onclick="dismissBanner()">✕</button>
+  </div>
+</div>
+
+<div id="statsContainer"></div>
+
+<div id="tabs">
+  <div class="tab active" id="tabPortfolio">Open Trades</div>
+  <div class="tab" id="tabHistory">History</div>
+  <div class="tab" id="tabLeaderboard">Leaderboard</div>
+</div>
+
+<!-- Open Trades -->
+<div class="section active" id="sectionPortfolio">
+  <div class="toolbar">
+    <button class="primary" onclick="showTradeModal()">Add Buy</button>
+    <button class="secondary" onclick="exportData()">Backup</button>
+    <button class="secondary" onclick="document.getElementById('importFile').click()">Import Backup</button>
+    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
+    <button class="danger" onclick="resetAll()">Delete All</button>
+  </div>
+  <div class="search-row">
+    <div><input type="text" id="searchOpen" placeholder="Search open trades (player / note)" oninput="renderOpenTrades()"></div>
+  </div>
+  <div class="table-wrap">
+    <table id="openTradesTable">
+      <thead>
+        <tr>
+          <th style="width:50px;"></th>
+          <th class="sortable" onclick="setOpenSort('player')">Player</th>
+          <th class="sortable" onclick="setOpenSort('buyPrice')">Buy Price</th>
+          <th class="sortable" onclick="setOpenSort('buyDate')">Buy Date</th>
+          <th>Type</th>
+          <th>Note</th>
+          <th style="width:280px;">Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- History -->
+<div class="section" id="sectionHistory">
+  <div class="toolbar">
+    <span class="muted"><b>Filter (Sell Date):</b></span>
+    <button class="secondary small" onclick="filterHistory('today')">Today</button>
+    <button class="secondary small" onclick="filterHistory('7days')">Last 7 Days</button>
+    <button class="secondary small" onclick="filterHistory('30days')">Last 30 Days</button>
+    <button class="secondary small" onclick="filterHistory('thisWeek')">This Week</button>
+    <button class="secondary small" onclick="filterHistory('thisMonth')">This Month</button>
+    <button class="secondary small" onclick="filterHistory('all')">All</button>
+    <button class="secondary small" onclick="sortHistory('profit')">Sort: Profit</button>
+    <button class="secondary small" onclick="sortHistory('date')">Sort: Date</button>
+  </div>
+  <div class="search-row">
+    <div><input type="text" id="searchHistory" placeholder="Search history (player / note)" oninput="renderHistory()"></div>
+  </div>
+  <div class="table-wrap">
+    <table id="historyTable">
+      <thead>
+        <tr>
+          <th style="width:50px;"></th>
+          <th>Player</th>
+          <th>Buy Price</th>
+          <th>Buy Date</th>
+          <th>Sell Price</th>
+          <th>Sell Date</th>
+          <th>Net Profit</th>
+          <th>Note</th>
+          <th style="width:120px;">Action</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Leaderboard -->
+<div class="section" id="sectionLeaderboard">
+  <div class="toolbar">
+    <span class="muted"><b>Range:</b></span>
+    <button class="secondary small" onclick="setLeaderboardRange('today')">Today</button>
+    <button class="secondary small" onclick="setLeaderboardRange('7days')">Last 7 Days</button>
+    <button class="secondary small" onclick="setLeaderboardRange('30days')">Last 30 Days</button>
+    <button class="secondary small" onclick="setLeaderboardRange('all')">All</button>
+  </div>
+  <div class="leaderboard-grid">
+    <div class="lb-card"><div class="lb-title">Avg Sell Duration</div><div id="lbDuration"></div></div>
+    <div class="lb-card"><div class="lb-title">Most Sold Players</div><div id="lbMostSold"></div></div>
+    <div class="lb-card"><div class="lb-title">Most Profitable Players</div><div id="lbMostProfit"></div></div>
+  </div>
+</div>
+
+<!-- Buy Modal -->
+<div id="overlay">
+  <div class="modal" id="tradeModal">
+    <h3 id="tradeFormTitle">Add Trade</h3>
+
+    <!-- Extension Import Preview (sichtbar wenn Daten vorhanden) -->
+    <div id="importedCardPreview" style="display:none" class="imported-card">
+      <img id="modalImportImg" src="" alt="" onerror="this.style.display='none'"/>
+      <div class="ic-info">
+        <div class="ic-name" id="modalImportName">—</div>
+        <div class="ic-meta">Typ: <span id="modalImportType">—</span></div>
+        <div class="ic-price">Live-Preis: <span id="modalImportPrice">—</span></div>
+      </div>
+    </div>
+
+    <div id="manualPlayerNameGroup">
+      <div class="field-label">Player name:</div>
+      <input type="text" id="playerName" placeholder="e.g. Mbappé"/>
+    </div>
+
+    <div>
+      <div class="field-label">fut.gg – Karte suchen &amp; Bild-URL einfügen:</div>
+      <div class="futgg-row">
+        <input type="text" id="cardImageUrl" placeholder="Bild-URL (optional)" oninput="updateImgPreview()"/>
+        <button class="futgg" onclick="openFutGG()">🔍 fut.gg</button>
+      </div>
+      <div id="futggStatus" class="futgg-status">Open the popup, search your card on fut.gg, then click the green import button there.</div>
+    </div>
+
+    <div id="imgPreviewWrap">
+      <img id="imgPreview" src="" alt="" onerror="this.style.display='none'" onload="this.style.display='block'"/>
+      <span id="imgPreviewText">Tipp: Rechtsklick auf Kartenbild auf fut.gg → „Bildadresse kopieren" → hier einfügen.</span>
+    </div>
+
+    <div class="row manual-import-fields" id="manualImportFields">
+      <div>
+        <div class="field-label">Kartentyp (z.B. TOTY, IF):</div>
+        <input type="text" id="cardType" placeholder="z.B. Gold, IF, TOTY"/>
+      </div>
+      <div>
+        <div class="field-label">Live-Preis (von fut.gg):</div>
+        <input type="number" id="livePrice" placeholder="Coins (optional)"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="field-label">Buy price:</div>
+        <input type="number" id="buyPrice" step="1" placeholder="Coins"/>
+      </div>
+      <div>
+        <div class="field-label">Buy date / time:</div>
+        <input type="datetime-local" id="buyDate"/>
+      </div>
+    </div>
+    <div>
+      <div class="field-label">Note:</div>
+      <input type="text" id="note" placeholder="optional"/>
+    </div>
+    <div class="modal-footer">
+      <button class="primary" onclick="saveTrade()">Save</button>
+      <button class="secondary" onclick="closeTradeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sell Modal -->
+<div id="sellOverlay">
+  <div class="modal" id="sellModal">
+    <h3>Complete Sale</h3>
+    <div class="row">
+      <div>
+        <label>Sell price:</label>
+        <input type="number" id="sellPrice" step="1" oninput="updateSellCalc()" placeholder="Coins"/>
+      </div>
+      <div>
+        <label>Sell date / time:</label>
+        <input type="datetime-local" id="sellDate" onchange="updateSellCalc()"/>
+      </div>
+    </div>
+    <div id="profitDisplay">
+      <div><span>Gross profit:</span><span id="bruttoProfit">0</span></div>
+      <div><span>EA tax (5%):</span><span id="eaTax">0</span></div>
+      <div><strong>Net profit:</strong><span id="nettoProfit" class="profit-pos">0</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="primary" onclick="confirmSell()">Sell</button>
+      <button class="secondary" onclick="closeSellModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b>Imprint</b> • Made by easy • Discord: <a href="https://discord.gg/zR5zJS46" target="_blank" rel="noopener">Click here</a>
+</footer>
+
+<script src="assets/js/app.js" defer></script>
+</body>
+</html>
+

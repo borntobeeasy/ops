@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OPS Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 300px;
+    min-height: 200px;
+    background: #0E1116;
+    color: #EAF0FF;
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 13px;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #0B0F14, #1C2029);
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .header h1 {
+    font-size: 15px;
+    font-weight: 900;
+    color: #A3FF12;
+    margin-bottom: 2px;
+  }
+  .header p {
+    font-size: 11px;
+    color: #A7B0C0;
+  }
+
+  .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .status-box {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .status-title {
+    font-size: 11px;
+    color: #A7B0C0;
+    margin-bottom: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .data-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    align-items: center;
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-label { color: #A7B0C0; }
+  .data-value { color: #EAF0FF; font-weight: 700; text-align: right; max-width: 160px; word-break: break-word; }
+  .data-value.price { color: #A3FF12; }
+
+  .card-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    display: block;
+    margin: 0 auto 8px auto;
+  }
+
+  .empty {
+    text-align: center;
+    color: #A7B0C0;
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 8px 0;
+  }
+  .empty span { font-size: 22px; display: block; margin-bottom: 6px; }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background: #A3FF12;
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    font-weight: 900;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+    transition: 0.2s;
+  }
+  .btn:hover { background: #8FE000; }
+  .btn.secondary {
+    background: transparent;
+    border: 1px solid rgba(163,255,18,0.5);
+    color: #A3FF12;
+    font-size: 12px;
+    padding: 8px;
+  }
+  .btn.secondary:hover { background: rgba(163,255,18,0.08); }
+
+  .hint {
+    font-size: 11px;
+    color: #A7B0C0;
+    line-height: 1.5;
+    background: rgba(163,255,18,0.05);
+    border: 1px solid rgba(163,255,18,0.15);
+    border-radius: 10px;
+    padding: 10px;
+  }
+  .hint b { color: #A3FF12; }
+
+  .age {
+    font-size: 10px;
+    color: #666;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ OPS Trading Tracker</h1>
+  <p>fut.gg Import Extension</p>
+</div>
+
+<div class="body">
+
+  <div id="dataSection">
+    <div class="status-box">
+      <div class="status-title">Letzter Import</div>
+      <div id="dataContent">
+        <div class="empty">
+          <span>🔍</span>
+          Noch keine Daten importiert.<br>Gehe zu fut.gg und klick den grünen Button.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">
+    <b>Workflow:</b><br>
+    1. Im Tracker → Spielername eingeben<br>
+    2. Auf <b>🔍 fut.gg</b> klicken<br>
+    3. Karte auf fut.gg auswählen<br>
+    4. Grünen <b>⚡ Import</b> Button klicken<br>
+    5. Zurück zum Tracker → Daten erscheinen automatisch
+  </div>
+
+  <button class="btn secondary" id="clearBtn">Daten löschen</button>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
