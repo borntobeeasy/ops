@@ -137,43 +137,37 @@
     </div>
 
     <div id="manualPlayerNameGroup">
-      <div class="field-label">Player name:</div>
-      <input type="text" id="playerName" placeholder="e.g. Mbappé"/>
+      <input type="hidden" id="playerName"/>
     </div>
 
     <div>
-      <div class="field-label">fut.gg – Karte suchen &amp; Bild-URL einfügen:</div>
+      <div class="field-label">fut.gg Import:</div>
       <div class="futgg-row">
-        <input type="text" id="cardImageUrl" placeholder="Bild-URL (optional)" oninput="updateImgPreview()"/>
-        <button class="futgg" onclick="openFutGG()">🔍 fut.gg</button>
+        <button class="futgg wide" onclick="openFutGG()">Open fut.gg</button>
       </div>
-      <div id="futggStatus" class="futgg-status">Open the popup, search your card on fut.gg, then click the green import button there.</div>
+      <div id="futggStatus" class="futgg-status">Open fut.gg, choose your card there, then click the green import button.</div>
     </div>
 
     <div id="imgPreviewWrap">
       <img id="imgPreview" src="" alt="" onerror="this.style.display='none'" onload="this.style.display='block'"/>
-      <span id="imgPreviewText">Tipp: Rechtsklick auf Kartenbild auf fut.gg → „Bildadresse kopieren" → hier einfügen.</span>
+      <span id="imgPreviewText">After import, the card preview appears here automatically.</span>
     </div>
 
     <div class="row manual-import-fields" id="manualImportFields">
-      <div>
-        <div class="field-label">Kartentyp (z.B. TOTY, IF):</div>
-        <input type="text" id="cardType" placeholder="z.B. Gold, IF, TOTY"/>
-      </div>
-      <div>
-        <div class="field-label">Live-Preis (von fut.gg):</div>
-        <input type="number" id="livePrice" placeholder="Coins (optional)"/>
-      </div>
+      <input type="hidden" id="cardImageUrl"/>
+      <input type="hidden" id="cardType"/>
+      <input type="hidden" id="livePrice"/>
     </div>
 
     <div class="row">
       <div>
-        <div class="field-label">Buy price:</div>
+        <div class="field-label">Your buy price:</div>
         <input type="number" id="buyPrice" step="1" placeholder="Coins"/>
       </div>
       <div>
-        <div class="field-label">Buy date / time:</div>
-        <input type="datetime-local" id="buyDate"/>
+        <div class="field-label">Saved time:</div>
+        <div id="buyDatePreview" class="auto-time">Will be saved automatically when you click Save.</div>
+        <input type="hidden" id="buyDate"/>
       </div>
     </div>
     <div>

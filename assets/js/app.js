@@ -110,6 +110,21 @@ function setFutggStatus(message, tone='info') {
   el.className = `futgg-status${tone !== 'info' ? ` ${tone}` : ''}`;
 }
 
+function setBuyDatePreview(value) {
+  const preview = document.getElementById('buyDatePreview');
+  const hiddenInput = document.getElementById('buyDate');
+  const effectiveValue = value || nowLocalISO();
+
+  if (hiddenInput) hiddenInput.value = effectiveValue;
+  if (!preview) return;
+
+  try {
+    preview.textContent = new Date(effectiveValue).toLocaleString();
+  } catch {
+    preview.textContent = effectiveValue;
+  }
+}
+
 function toggleImportedFieldVisibility(hasImportedData) {
   const playerGroup = document.getElementById('manualPlayerNameGroup');
   const manualFields = document.getElementById('manualImportFields');
@@ -126,7 +141,6 @@ function updateImportedCardPreview(data) {
 
   if (!data || !data.name) {
     preview.style.display = 'none';
-    toggleImportedFieldVisibility(false);
     return;
   }
 
@@ -136,7 +150,6 @@ function updateImportedCardPreview(data) {
   document.getElementById('modalImportType').textContent = data.cardType || '—';
   document.getElementById('modalImportPrice').textContent = data.price ? formatCoins(data.price) + ' Coins' : '—';
   preview.style.display = 'flex';
-  toggleImportedFieldVisibility(true);
 }
 
 function applyImportToTradeForm(data, options={}) {
@@ -218,15 +231,18 @@ function openFutGG() {
 }
 
 function updateImgPreview() {
-  const url = document.getElementById('cardImageUrl').value.trim();
+  const input = document.getElementById('cardImageUrl');
+  const url = input ? input.value.trim() : '';
   const img = document.getElementById('imgPreview');
   const txt = document.getElementById('imgPreviewText');
+  if (!img || !txt) return;
+
   if (url) {
     img.src = url;
-    txt.textContent = 'Vorschau ↑';
+    txt.textContent = 'Imported card preview';
   } else {
     img.style.display = 'none';
-    txt.textContent = 'Tipp: Rechtsklick auf Kartenbild auf fut.gg → „Bildadresse kopieren" → hier einfügen.';
+    txt.textContent = 'After import, the card preview appears here automatically.';
   }
 }
 
@@ -437,14 +453,14 @@ function showTradeModal(prefill) {
   document.getElementById('tradeFormTitle').textContent = 'Add Trade';
   document.getElementById('playerName').value = prefill?.name || '';
   document.getElementById('buyPrice').value = '';
-  document.getElementById('buyDate').value = nowLocalISO();
+  setBuyDatePreview(nowLocalISO());
   document.getElementById('note').value = '';
   document.getElementById('cardImageUrl').value = prefill?.imageUrl || '';
   document.getElementById('cardType').value = prefill?.cardType || '';
   document.getElementById('livePrice').value = prefill?.price || '';
   document.getElementById('imgPreview').style.display = 'none';
-  document.getElementById('imgPreviewText').textContent = 'Tipp: Rechtsklick auf Kartenbild auf fut.gg -> Bildadresse kopieren -> hier einfuegen.';
-  setFutggStatus('Open the popup, search your card on fut.gg, then click the green import button there.', 'info');
+  document.getElementById('imgPreviewText').textContent = 'After import, the card preview appears here automatically.';
+  setFutggStatus('Open fut.gg, choose your card there, then click the green import button.', 'info');
   updateImportedCardPreview(prefill);
 
   if (prefill?.imageUrl) updateImgPreview();
@@ -458,13 +474,14 @@ function closeTradeModal() { document.getElementById('overlay').style.display='n
 function saveTrade() {
   const player = getTradeFormPlayerName();
   const buyPrice = parseFloat(document.getElementById('buyPrice').value);
-  const buyDatum = document.getElementById('buyDate').value;
+  const existingBuyDate = document.getElementById('buyDate').value;
+  const buyDatum = currentTradeId ? (existingBuyDate || nowLocalISO()) : nowLocalISO();
   const notiz = document.getElementById('note').value;
   const cardImageUrl = document.getElementById('cardImageUrl').value.trim();
   const cardType = document.getElementById('cardType').value.trim();
   const livePrice = parseFloat(document.getElementById('livePrice').value) || null;
 
-  if(!player||isNaN(buyPrice)||!buyDatum){alert('Please fill player, buy price and buy date.');return;}
+  if(!player||isNaN(buyPrice)){alert('Please import a player from fut.gg and enter your buy price.');return;}
 
   const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, cardImageUrl, cardType, livePrice };
 
@@ -483,7 +500,7 @@ function editTrade(id) {
   document.getElementById('tradeFormTitle').textContent='Edit Trade';
   document.getElementById('playerName').value=t.spieler;
   document.getElementById('buyPrice').value=t.kaufpreis;
-  document.getElementById('buyDate').value=t.kaufDatum;
+  setBuyDatePreview(t.kaufDatum);
   document.getElementById('note').value=t.notiz||'';
   document.getElementById('cardImageUrl').value=t.cardImageUrl||'';
   document.getElementById('cardType').value=t.cardType||'';
