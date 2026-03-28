@@ -74,6 +74,7 @@ function checkExtensionData() {
 
 function showImportBanner(data) {
   const banner = document.getElementById('importBanner');
+  if (!banner) return;
   const img = document.getElementById('bannerImg');
   const nameEl = document.getElementById('bannerName');
   const typeEl = document.getElementById('bannerType');
@@ -89,15 +90,12 @@ function showImportBanner(data) {
   const mins = Math.floor((Date.now() - data.timestamp) / 60000);
   ageEl.textContent = mins < 1 ? 'Gerade importiert' : `vor ${mins} Min importiert`;
 
-  banner.classList.add('visible');
+  banner.classList.remove('visible');
 }
 
 function dismissBanner() {
-  document.getElementById('importBanner').classList.remove('visible');
-  // Extension-Daten löschen
-  if (typeof chrome !== 'undefined' && chrome.storage) {
-    chrome.storage.local.remove('ops_import_data');
-  }
+  const banner = document.getElementById('importBanner');
+  if (banner) banner.classList.remove('visible');
   pendingImport = null;
 }
 
@@ -235,6 +233,29 @@ function buildImportFromUrl(pageUrl) {
   };
 }
 
+function buildFutggAssetsUrl(pageUrl) {
+  const cleanUrl = pageUrl.replace(/\/+$/, '');
+  if (cleanUrl.endsWith('/assets')) return `${cleanUrl}/`;
+  return `${cleanUrl}/assets/`;
+}
+
+function extractSimpleCardImageUrl(html) {
+  const source = html || '';
+  const simpleCardMatch = source.match(/https:\/\/game-assets\.fut\.gg\/[^"' ]*player-item-simple-card\/[^"' ]+\.(?:png|webp)/i);
+  if (simpleCardMatch) return simpleCardMatch[0];
+
+  const allAssetMatches = [...source.matchAll(/https:\/\/game-assets\.fut\.gg\/[^"' ]+\.(?:png|webp)/ig)].map((match) => match[0]);
+  return allAssetMatches[2] || allAssetMatches[0] || '';
+}
+
+async function importSimpleCardImage(pageUrl) {
+  const assetsUrl = buildFutggAssetsUrl(pageUrl);
+  const response = await fetch(assetsUrl);
+  if (!response.ok) throw new Error(`Asset page HTTP ${response.status}`);
+  const html = await response.text();
+  return extractSimpleCardImageUrl(html);
+}
+
 async function importFromFutggUrl() {
   const input = document.getElementById('futggUrl');
   const parsedUrl = normalizeFutggUrl(input?.value || '');
@@ -246,6 +267,7 @@ async function importFromFutggUrl() {
 
   const pageUrl = parsedUrl.toString();
   setFutggStatus('Importing card data from the fut.gg link...', 'info');
+  let imported = buildImportFromUrl(pageUrl);
 
   try {
     const proxyUrl = `${FUTGG_PROXY_PREFIX}${pageUrl.replace(/^https?:\/\//i, '')}`;
@@ -253,28 +275,37 @@ async function importFromFutggUrl() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const text = await response.text();
-    const imported = parseFutggProxyText(text, pageUrl);
-    if (!imported.name) throw new Error('No player data found');
-
-    if (!imported.price) {
-      imported.priceRaw = imported.priceRaw || 'Live price unavailable from link import';
-    }
-
-    handleImportedData(imported);
-    setFutggStatus(imported.price
-      ? 'Card imported from the fut.gg link.'
-      : 'Card imported from the fut.gg link. Live price was not available from the page.', imported.price ? 'success' : 'info');
+    const parsedImport = parseFutggProxyText(text, pageUrl);
+    if (parsedImport.name) imported = { ...imported, ...parsedImport };
   } catch (error) {
-    console.warn('fut.gg link import failed', error);
-    const fallbackImport = buildImportFromUrl(pageUrl);
-    if (!fallbackImport.name) {
-      setFutggStatus('The fut.gg link could not be imported automatically. Check the link and try again.', 'error');
-      return;
-    }
-
-    handleImportedData(fallbackImport);
-    setFutggStatus('The link was only partially read. Player name was filled from the URL, and you can correct the rest manually.', 'info');
+    console.warn('fut.gg text import failed', error);
   }
+
+  try {
+    const simpleCardImageUrl = await importSimpleCardImage(pageUrl);
+    if (simpleCardImageUrl) imported.imageUrl = simpleCardImageUrl;
+  } catch (error) {
+    console.warn('fut.gg asset image import failed', error);
+  }
+
+  if (!imported.name) {
+    setFutggStatus('The fut.gg link could not be imported automatically. Check the link and try again.', 'error');
+    return;
+  }
+
+  if (!imported.price) {
+    imported.priceRaw = imported.priceRaw || 'Live price unavailable from link import';
+  }
+
+  handleImportedData(imported);
+  setFutggStatus(
+    imported.imageUrl
+      ? 'Card imported. The small card image from fut.gg assets was applied.'
+      : imported.price
+        ? 'Card imported from the fut.gg link.'
+        : 'The link was only partially read. Check and complete the fields if needed.',
+    imported.imageUrl || imported.price ? 'success' : 'info'
+  );
 }
 
 function toggleImportedFieldVisibility(hasImportedData) {
