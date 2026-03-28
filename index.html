@@ -140,8 +140,7 @@
     </div>
 
     <div id="manualPlayerNameGroup">
-      <div class="field-label">Player:</div>
-      <input type="text" id="playerName" placeholder="Will be filled from FUTBIN or you can correct it"/>
+      <input type="hidden" id="playerName"/>
     </div>
 
     <div>
@@ -161,27 +160,19 @@
       <span id="imgPreviewText">After import, the card preview appears here automatically.</span>
     </div>
 
-    <div class="row manual-import-fields" id="manualImportFields">
+    <div class="row manual-import-fields is-hidden" id="manualImportFields">
+      <input type="hidden" id="cardType"/>
+      <input type="hidden" id="livePrice"/>
+    </div>
+
+    <div class="row manual-import-fields is-hidden">
       <div>
-        <div class="field-label">Card type:</div>
-        <input type="text" id="cardType" placeholder="Filled from FUTBIN if available"/>
-      </div>
-      <div>
-        <div class="field-label">Price:</div>
-        <input type="number" id="livePrice" placeholder="Filled from FUTBIN if available"/>
+        <input type="hidden" id="priceRange"/>
       </div>
     </div>
 
-    <div class="row">
-      <div>
-        <div class="field-label">Price range (PR):</div>
-        <input type="text" id="priceRange" placeholder="e.g. 700 - 10,000"/>
-      </div>
-    </div>
-
-    <div>
-      <div class="field-label">Card image URL (optional):</div>
-      <input type="text" id="cardImageUrl" placeholder="Optional image link" oninput="updateImgPreview()"/>
+    <div class="manual-import-fields is-hidden">
+      <input type="hidden" id="cardImageUrl"/>
     </div>
 
     <div class="row">

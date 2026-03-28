@@ -408,10 +408,6 @@ function applyImportToTradeForm(data, options={}) {
   if (imported.price) livePrice.value = imported.price;
   if (imported.priceRange) priceRange.value = imported.priceRange;
 
-  if (imported.pageUrl && (!preserveUserFields || !note.value.trim())) {
-    note.value = `futbin: ${imported.pageUrl}`;
-  }
-
   updateImportedCardPreview(imported);
   updateImgPreview();
   setFutggStatus(
@@ -740,6 +736,7 @@ function saveTrade() {
   const existingBuyDate = document.getElementById('buyDate').value;
   const buyDatum = currentTradeId ? (existingBuyDate || nowLocalISO()) : nowLocalISO();
   const notiz = document.getElementById('note').value;
+  const sourceUrl = document.getElementById('futggUrl').value.trim();
   const cardImageUrl = document.getElementById('cardImageUrl').value.trim();
   const cardType = document.getElementById('cardType').value.trim();
   const livePrice = parseFloat(document.getElementById('livePrice').value) || null;
@@ -747,7 +744,7 @@ function saveTrade() {
 
   if(!player||isNaN(buyPrice)){alert('Please import a player from FUTBIN and enter your buy price.');return;}
 
-  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, cardImageUrl, cardType, livePrice, priceRange };
+  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, sourceUrl, cardImageUrl, cardType, livePrice, priceRange };
 
   if(currentTradeId) {
     const idx=trades.offene.findIndex(t=>t.id===currentTradeId);
@@ -763,7 +760,7 @@ function editTrade(id) {
   const t=trades.offene.find(tr=>tr.id===id); if(!t) return;
   document.getElementById('tradeFormTitle').textContent='Edit Trade';
   document.getElementById('playerName').value=t.spieler;
-  document.getElementById('futggUrl').value=t.notiz && t.notiz.startsWith('futbin: ') ? t.notiz.replace('futbin: ', '') : '';
+  document.getElementById('futggUrl').value=t.sourceUrl || '';
   document.getElementById('buyPrice').value=t.kaufpreis;
   setBuyDatePreview(t.kaufDatum);
   document.getElementById('note').value=t.notiz||'';
