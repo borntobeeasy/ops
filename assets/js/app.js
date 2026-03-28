@@ -11,8 +11,8 @@ let openSort = { key: 'buyDate', dir: 'desc' };
 let leaderboardRange = 'all';
 let pendingImport = null;
 let futggPopup = null;
-const FUTGG_ORIGIN = 'https://www.fut.gg';
-const FUTGG_MESSAGE_TYPE = 'ops-futgg-import';
+const FUTGG_ORIGIN = 'https://www.futbin.com';
+const FUTGG_MESSAGE_TYPE = 'ops-futbin-import';
 const FUTGG_PROXY_PREFIX = 'https://r.jina.ai/http://';
 
 function isMobileLayout() {
@@ -85,7 +85,9 @@ function showImportBanner(data) {
   img.style.display = data.imageUrl ? 'block' : 'none';
   nameEl.textContent = data.name || '—';
   typeEl.textContent = data.cardType || '—';
-  priceEl.textContent = data.price ? formatCoins(data.price) + ' Coins' : '—';
+  priceEl.textContent = data.price
+    ? `${formatCoins(data.price)} Coins${data.priceRange ? ` • PR ${data.priceRange}` : ''}`
+    : (data.priceRange ? `PR ${data.priceRange}` : '—');
 
   const mins = Math.floor((Date.now() - data.timestamp) / 60000);
   ageEl.textContent = mins < 1 ? 'Gerade importiert' : `vor ${mins} Min importiert`;
@@ -113,6 +115,7 @@ function normalizeImportData(data) {
     imageUrl: (data.imageUrl || '').toString().trim(),
     cardType: (data.cardType || '').toString().trim(),
     price: Number.isFinite(price) ? price : null,
+    priceRange: (data.priceRange || '').toString().trim(),
     priceRaw: data.priceRaw || '',
     pageUrl: data.pageUrl || '',
     timestamp: data.timestamp || Date.now()
@@ -150,7 +153,7 @@ function normalizeFutggUrl(rawUrl) {
 
   try {
     const url = new URL(candidate);
-    if (!/(\.|^)fut\.gg$/i.test(url.hostname)) return null;
+    if (!/(\.|^)futbin\.com$/i.test(url.hostname)) return null;
     return url;
   } catch {
     return null;
@@ -227,10 +230,58 @@ function buildImportFromUrl(pageUrl) {
     imageUrl: '',
     cardType: '',
     price: null,
+    priceRange: '',
     priceRaw: '',
     pageUrl,
     timestamp: Date.now()
   };
+}
+
+function parseFutbinProxyText(text, pageUrl) {
+  const lines = (text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const headingLine = lines.find((line) => line.startsWith('# ')) || '';
+  const headingMatch = headingLine.match(/^#\s+(.*?)\s+-\s+(.*?)\s+EA FC\s+\d+\s+Prices/i);
+  const nameFromHeading = headingMatch ? headingMatch[1].trim() : '';
+  const cardType = headingMatch ? headingMatch[2].trim() : '';
+
+  const trendIndex = lines.findIndex((line) => /^Trend:/i.test(line));
+  const nearby = trendIndex >= 0 ? lines.slice(trendIndex, trendIndex + 20) : [];
+  const priceLine = nearby.find((line) => /^\d[\d,.]*$/.test(line.replace(/\s/g, ''))) || '';
+  const priceDigits = priceLine ? priceLine.replace(/[^0-9]/g, '') : '';
+  const parsedPrice = priceDigits ? Number(priceDigits) : null;
+  const priceRangeLabelIndex = nearby.findIndex((line) => /PRICE RANGE:/i.test(line));
+  const priceRange = priceRangeLabelIndex >= 0 && nearby[priceRangeLabelIndex + 1]
+    ? nearby[priceRangeLabelIndex + 1].replace(/\s+/g, ' ').trim()
+    : '';
+
+  const fallback = buildImportFromUrl(pageUrl);
+  return {
+    ...fallback,
+    name: nameFromHeading || fallback.name,
+    cardType,
+    price: Number.isFinite(parsedPrice) ? parsedPrice : null,
+    priceRange,
+    priceRaw: priceLine || ''
+  };
+}
+
+function extractFutbinCardImageUrl(html) {
+  const source = html || '';
+  const matches = [...source.matchAll(/https:\/\/cdn\.futbin\.com\/content\/fifa26\/img\/players\/[^\s"'`)>]+?\.(?:png|webp)/ig)]
+    .map((match) => match[0]);
+  return [...new Set(matches)][0] || '';
+}
+
+async function importFutbinCardImage(pageUrl) {
+  const proxyUrl = `${FUTGG_PROXY_PREFIX}${pageUrl.replace(/^https?:\/\//i, '')}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) throw new Error(`Image page HTTP ${response.status}`);
+  const text = await response.text();
+  return extractFutbinCardImageUrl(text);
 }
 
 function buildFutggAssetsUrl(pageUrl) {
@@ -266,12 +317,12 @@ async function importFromFutggUrl() {
   const parsedUrl = normalizeFutggUrl(input?.value || '');
 
   if (!parsedUrl) {
-    setFutggStatus('Paste a valid fut.gg player link first.', 'error');
+    setFutggStatus('Paste a valid FUTBIN player link first.', 'error');
     return;
   }
 
   const pageUrl = parsedUrl.toString();
-  setFutggStatus('Importing card data from the fut.gg link...', 'info');
+  setFutggStatus('Importing card data from the FUTBIN link...', 'info');
   let imported = buildImportFromUrl(pageUrl);
 
   try {
@@ -280,21 +331,21 @@ async function importFromFutggUrl() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const text = await response.text();
-    const parsedImport = parseFutggProxyText(text, pageUrl);
+    const parsedImport = parseFutbinProxyText(text, pageUrl);
     if (parsedImport.name) imported = { ...imported, ...parsedImport };
   } catch (error) {
-    console.warn('fut.gg text import failed', error);
+    console.warn('futbin text import failed', error);
   }
 
   try {
-    const simpleCardImageUrl = await importSimpleCardImage(pageUrl);
-    if (simpleCardImageUrl) imported.imageUrl = simpleCardImageUrl;
+    const imageUrl = await importFutbinCardImage(pageUrl);
+    if (imageUrl) imported.imageUrl = imageUrl;
   } catch (error) {
-    console.warn('fut.gg asset image import failed', error);
+    console.warn('futbin image import failed', error);
   }
 
   if (!imported.name) {
-    setFutggStatus('The fut.gg link could not be imported automatically. Check the link and try again.', 'error');
+    setFutggStatus('The FUTBIN link could not be imported automatically. Check the link and try again.', 'error');
     return;
   }
 
@@ -304,12 +355,10 @@ async function importFromFutggUrl() {
 
   handleImportedData(imported);
   setFutggStatus(
-    imported.imageUrl
-      ? 'Card imported. The small card image from fut.gg assets was applied.'
-      : imported.price
-        ? 'Card imported from the fut.gg link.'
-        : 'The link was only partially read. Check and complete the fields if needed.',
-    imported.imageUrl || imported.price ? 'success' : 'info'
+    imported.price || imported.priceRange
+      ? 'Card imported from FUTBIN. Price and PR were applied when available.'
+      : 'The link was only partially read. Check and complete the fields if needed.',
+    imported.price || imported.priceRange ? 'success' : 'info'
   );
 }
 
@@ -337,6 +386,7 @@ function updateImportedCardPreview(data) {
   document.getElementById('modalImportName').textContent = data.name || '—';
   document.getElementById('modalImportType').textContent = data.cardType || '—';
   document.getElementById('modalImportPrice').textContent = data.price ? formatCoins(data.price) + ' Coins' : (data.priceRaw || 'Not available');
+  document.getElementById('modalImportPriceRange').textContent = data.priceRange || '—';
   preview.style.display = 'flex';
 }
 
@@ -349,24 +399,26 @@ function applyImportToTradeForm(data, options={}) {
   const cardImageUrl = document.getElementById('cardImageUrl');
   const cardType = document.getElementById('cardType');
   const livePrice = document.getElementById('livePrice');
+  const priceRange = document.getElementById('priceRange');
   const note = document.getElementById('note');
 
   playerName.value = imported.name || playerName.value;
   cardImageUrl.value = imported.imageUrl || cardImageUrl.value;
   cardType.value = imported.cardType || cardType.value;
   if (imported.price) livePrice.value = imported.price;
+  if (imported.priceRange) priceRange.value = imported.priceRange;
 
   if (imported.pageUrl && (!preserveUserFields || !note.value.trim())) {
-    note.value = `fut.gg: ${imported.pageUrl}`;
+    note.value = `futbin: ${imported.pageUrl}`;
   }
 
   updateImportedCardPreview(imported);
   updateImgPreview();
   setFutggStatus(
     imported.price
-      ? 'Card imported from fut.gg. Image, type, and live market price were applied.'
-      : 'Card imported from fut.gg. Name and card type were applied.',
-    imported.price ? 'success' : 'info'
+      ? 'Card imported from FUTBIN. Image, type, price and PR were applied.'
+      : 'Card imported from FUTBIN. Name and type were applied.',
+    imported.price || imported.priceRange ? 'success' : 'info'
   );
 }
 
@@ -407,7 +459,7 @@ function handleFutggMessage(event) {
 function openFutGG() {
   const name = getTradeFormPlayerName();
   const q = encodeURIComponent(name || '');
-  const url = `https://www.fut.gg/players/?search=${q}`;
+  const url = `https://www.futbin.com/players?page=1&search=${q}`;
 
   if (isMobileLayout() || isTouchDevice()) {
     futggPopup = window.open(url, '_blank');
@@ -415,7 +467,7 @@ function openFutGG() {
       window.location.href = url;
       return;
     }
-    setFutggStatus('fut.gg opened in a new tab. Copy the player link there, then switch back and import it here.', 'info');
+    setFutggStatus('FUTBIN opened in a new tab. Copy the player link there, then switch back and import it here.', 'info');
     return;
   }
 
@@ -432,7 +484,7 @@ function openFutGG() {
     return;
   }
 
-  setFutggStatus('fut.gg popup opened. Copy the player link there, then paste it here to import.', 'info');
+  setFutggStatus('FUTBIN opened. Copy the player link there, then paste it here to import.', 'info');
   futggPopup.focus();
 }
 
@@ -572,17 +624,19 @@ function renderOpenTrades() {
   const q = document.getElementById("searchOpen").value;
   let list = sortOpen(trades.offene.filter(t=>includesAny(t,q)));
   tbody.innerHTML = '';
-  if(!list.length) { tbody.innerHTML=`<tr><td colspan="7" class="muted">No open trades found.</td></tr>`; return; }
+  if(!list.length) { tbody.innerHTML=`<tr><td colspan="8" class="muted">No open trades found.</td></tr>`; return; }
   list.forEach(t => {
-    const livePriceHtml = t.livePrice ? `<br><span style="font-size:0.78em;color:#A3FF12">Live: ${formatCoins(t.livePrice)}</span>` : '';
+    const livePriceHtml = t.livePrice ? `<br><span style="font-size:0.78em;color:#A3FF12">Price: ${formatCoins(t.livePrice)}</span>` : '';
+    const priceRangeHtml = t.priceRange ? `<br><span style="font-size:0.78em;color:#c9dcff">PR: ${sanitizeHtml(t.priceRange)}</span>` : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="icon-cell">${renderPlayerIcon(t.cardImageUrl)}</td>
-      <td data-label="Player"><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}${livePriceHtml}</td>
+      <td data-label="Player"><b>${sanitizeHtml(t.spieler)}</b>${t.cardType?`<span class="card-badge">${sanitizeHtml(t.cardType)}</span>`:''}${livePriceHtml}${priceRangeHtml}</td>
       <td data-label="Buy Price">${formatCoins(t.kaufpreis)}</td>
       <td data-label="Buy Date">${formatDateTime(t.kaufDatum)}</td>
-      <td data-label="Type">${t.cardType||'—'}</td>
-      <td data-label="Note">${t.notiz||''}</td>
+      <td data-label="Type">${sanitizeHtml(t.cardType||'—')}</td>
+      <td data-label="PR">${sanitizeHtml(t.priceRange||'—')}</td>
+      <td data-label="Note">${sanitizeHtml(t.notiz||'')}</td>
       <td class="actions-cell" data-label="Actions">
         <button class="secondary small" onclick="showSellModal('${t.id}')">Sell</button>
         <button class="secondary small" onclick="editTrade('${t.id}')">Edit</button>
@@ -616,19 +670,20 @@ function renderHistory() {
   const tbody=document.querySelector('#historyTable tbody');
   const list=getFilteredHistory();
   tbody.innerHTML='';
-  if(!list.length){tbody.innerHTML=`<tr><td colspan="9" class="muted">No trades found.</td></tr>`;return;}
+  if(!list.length){tbody.innerHTML=`<tr><td colspan="10" class="muted">No trades found.</td></tr>`;return;}
   list.forEach(t=>{
     const p=Number(t.nettoProfit)||0;
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td class="icon-cell">${renderPlayerIcon(t.cardImageUrl)}</td>
-      <td data-label="Player"><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}</td>
+      <td data-label="Player"><b>${sanitizeHtml(t.spieler)}</b>${t.cardType?`<span class="card-badge">${sanitizeHtml(t.cardType)}</span>`:''}</td>
       <td data-label="Buy Price">${formatCoins(t.kaufpreis)}</td>
       <td data-label="Buy Date">${formatDateTime(t.kaufDatum)}</td>
       <td data-label="Sell Price">${formatCoins(t.sellPrice)}</td>
       <td data-label="Sell Date">${formatDateTime(t.sellDate)}</td>
       <td data-label="Net Profit" class="${p>=0?'profit-pos':'profit-neg'}">${formatCoins(p)}</td>
-      <td data-label="Note">${t.notiz||''}</td>
+      <td data-label="PR">${sanitizeHtml(t.priceRange||'—')}</td>
+      <td data-label="Note">${sanitizeHtml(t.notiz||'')}</td>
       <td class="actions-cell" data-label="Actions"><button class="secondary small" onclick="reopenTrade('${t.id}')">Reopen</button></td>`;
     tbody.appendChild(tr);
   });
@@ -665,9 +720,10 @@ function showTradeModal(prefill) {
   document.getElementById('cardImageUrl').value = prefill?.imageUrl || '';
   document.getElementById('cardType').value = prefill?.cardType || '';
   document.getElementById('livePrice').value = prefill?.price || '';
+  document.getElementById('priceRange').value = prefill?.priceRange || '';
   document.getElementById('imgPreview').style.display = 'none';
   document.getElementById('imgPreviewText').textContent = 'After import, the card preview appears here automatically.';
-  setFutggStatus('Open fut.gg, copy the player link, paste it here, then import the card.', 'info');
+  setFutggStatus('Open FUTBIN, copy the player link, paste it here, then import the card.', 'info');
   updateImportedCardPreview(prefill);
 
   if (prefill?.imageUrl) updateImgPreview();
@@ -687,10 +743,11 @@ function saveTrade() {
   const cardImageUrl = document.getElementById('cardImageUrl').value.trim();
   const cardType = document.getElementById('cardType').value.trim();
   const livePrice = parseFloat(document.getElementById('livePrice').value) || null;
+  const priceRange = document.getElementById('priceRange').value.trim();
 
-  if(!player||isNaN(buyPrice)){alert('Please import a player from fut.gg and enter your buy price.');return;}
+  if(!player||isNaN(buyPrice)){alert('Please import a player from FUTBIN and enter your buy price.');return;}
 
-  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, cardImageUrl, cardType, livePrice };
+  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, cardImageUrl, cardType, livePrice, priceRange };
 
   if(currentTradeId) {
     const idx=trades.offene.findIndex(t=>t.id===currentTradeId);
@@ -706,15 +763,16 @@ function editTrade(id) {
   const t=trades.offene.find(tr=>tr.id===id); if(!t) return;
   document.getElementById('tradeFormTitle').textContent='Edit Trade';
   document.getElementById('playerName').value=t.spieler;
-  document.getElementById('futggUrl').value=t.notiz && t.notiz.startsWith('fut.gg: ') ? t.notiz.replace('fut.gg: ', '') : '';
+  document.getElementById('futggUrl').value=t.notiz && t.notiz.startsWith('futbin: ') ? t.notiz.replace('futbin: ', '') : '';
   document.getElementById('buyPrice').value=t.kaufpreis;
   setBuyDatePreview(t.kaufDatum);
   document.getElementById('note').value=t.notiz||'';
   document.getElementById('cardImageUrl').value=t.cardImageUrl||'';
   document.getElementById('cardType').value=t.cardType||'';
   document.getElementById('livePrice').value=t.livePrice||'';
+  document.getElementById('priceRange').value=t.priceRange||'';
   updateImportedCardPreview(null);
-  setFutggStatus('Paste another fut.gg link if you want to refresh this card data.', 'info');
+  setFutggStatus('Paste another FUTBIN link if you want to refresh this card data.', 'info');
   currentTradeId=t.id;
   updateImgPreview();
   document.getElementById('overlay').style.display='flex';

@@ -11,7 +11,7 @@
 
 <header>
   <h1>OPS Trading Tracker</h1>
-  <p>Overpriced Selling Trading • localStorage • EA tax auto • fut.gg link import</p>
+  <p>Overpriced Selling Trading • localStorage • EA tax auto • FUTBIN link import</p>
 </header>
 
 <!-- Import Banner -->
@@ -60,6 +60,7 @@
           <th class="sortable" onclick="setOpenSort('buyPrice')">Buy Price</th>
           <th class="sortable" onclick="setOpenSort('buyDate')">Buy Date</th>
           <th>Type</th>
+          <th>PR</th>
           <th>Note</th>
           <th style="width:280px;">Action</th>
         </tr>
@@ -96,6 +97,7 @@
           <th>Sell Price</th>
           <th>Sell Date</th>
           <th>Net Profit</th>
+          <th>PR</th>
           <th>Note</th>
           <th style="width:120px;">Action</th>
         </tr>
@@ -131,26 +133,27 @@
       <img id="modalImportImg" src="" alt="" onerror="this.style.display='none'"/>
       <div class="ic-info">
         <div class="ic-name" id="modalImportName">—</div>
-        <div class="ic-meta">Typ: <span id="modalImportType">—</span></div>
-        <div class="ic-price">Live-Preis: <span id="modalImportPrice">—</span></div>
+        <div class="ic-meta">Type: <span id="modalImportType">—</span></div>
+        <div class="ic-price">Price: <span id="modalImportPrice">—</span></div>
+        <div class="ic-meta">PR: <span id="modalImportPriceRange">—</span></div>
       </div>
     </div>
 
     <div id="manualPlayerNameGroup">
       <div class="field-label">Player:</div>
-      <input type="text" id="playerName" placeholder="Will be filled from fut.gg or you can correct it"/>
+      <input type="text" id="playerName" placeholder="Will be filled from FUTBIN or you can correct it"/>
     </div>
 
     <div>
-      <div class="field-label">fut.gg Import:</div>
+      <div class="field-label">FUTBIN Import:</div>
       <div class="import-tools">
-        <input type="text" id="futggUrl" placeholder="Paste fut.gg player link here"/>
+        <input type="text" id="futggUrl" placeholder="Paste FUTBIN player link here"/>
         <button class="secondary" type="button" onclick="importFromFutggUrl()">Import link</button>
       </div>
       <div class="futgg-row">
-        <button class="futgg wide" onclick="openFutGG()">Open fut.gg</button>
+        <button class="futgg wide" onclick="openFutGG()">Open FUTBIN</button>
       </div>
-      <div id="futggStatus" class="futgg-status">Open fut.gg, copy the player link, paste it here, then import the card.</div>
+      <div id="futggStatus" class="futgg-status">Open FUTBIN, copy the player link, paste it here, then import the card.</div>
     </div>
 
     <div id="imgPreviewWrap">
@@ -161,11 +164,18 @@
     <div class="row manual-import-fields" id="manualImportFields">
       <div>
         <div class="field-label">Card type:</div>
-        <input type="text" id="cardType" placeholder="Filled from fut.gg if available"/>
+        <input type="text" id="cardType" placeholder="Filled from FUTBIN if available"/>
       </div>
       <div>
-        <div class="field-label">Live price:</div>
-        <input type="number" id="livePrice" placeholder="Filled from fut.gg if available"/>
+        <div class="field-label">Price:</div>
+        <input type="number" id="livePrice" placeholder="Filled from FUTBIN if available"/>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="field-label">Price range (PR):</div>
+        <input type="text" id="priceRange" placeholder="e.g. 700 - 10,000"/>
       </div>
     </div>
 
