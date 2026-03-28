@@ -199,12 +199,37 @@ function parseFutggProxyText(text, pageUrl) {
     fallbackName = humanizeSlug(parts.find((part) => /-/.test(part)) || '');
   } catch {}
 
-  return {
+  const parsed = {
     name: nameFromHeading || fallbackName,
     imageUrl: '',
     cardType: [cardType, ratingFromHeading ? `${ratingFromHeading} OVR` : ''].filter(Boolean).join(' • '),
     price: Number.isFinite(parsedPrice) ? parsedPrice : null,
     priceRaw: priceLine || '',
+    pageUrl,
+    timestamp: Date.now()
+  };
+
+  if (!parsed.cardType && ratingFromHeading) {
+    parsed.cardType = `${ratingFromHeading} OVR`;
+  }
+
+  return parsed;
+}
+
+function buildImportFromUrl(pageUrl) {
+  let fallbackName = '';
+  try {
+    const url = new URL(pageUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    fallbackName = humanizeSlug(parts.find((part) => /-/.test(part)) || '');
+  } catch {}
+
+  return {
+    name: fallbackName,
+    imageUrl: '',
+    cardType: '',
+    price: null,
+    priceRaw: '',
     pageUrl,
     timestamp: Date.now()
   };
@@ -241,7 +266,14 @@ async function importFromFutggUrl() {
       : 'Card imported from the fut.gg link. Live price was not available from the page.', imported.price ? 'success' : 'info');
   } catch (error) {
     console.warn('fut.gg link import failed', error);
-    setFutggStatus('The fut.gg link could not be imported automatically. Check the link and try again.', 'error');
+    const fallbackImport = buildImportFromUrl(pageUrl);
+    if (!fallbackImport.name) {
+      setFutggStatus('The fut.gg link could not be imported automatically. Check the link and try again.', 'error');
+      return;
+    }
+
+    handleImportedData(fallbackImport);
+    setFutggStatus('The link was only partially read. Player name was filled from the URL, and you can correct the rest manually.', 'info');
   }
 }
 

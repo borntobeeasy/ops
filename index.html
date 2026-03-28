@@ -137,7 +137,8 @@
     </div>
 
     <div id="manualPlayerNameGroup">
-      <input type="hidden" id="playerName"/>
+      <div class="field-label">Player:</div>
+      <input type="text" id="playerName" placeholder="Will be filled from fut.gg or you can correct it"/>
     </div>
 
     <div>
@@ -158,9 +159,19 @@
     </div>
 
     <div class="row manual-import-fields" id="manualImportFields">
-      <input type="hidden" id="cardImageUrl"/>
-      <input type="hidden" id="cardType"/>
-      <input type="hidden" id="livePrice"/>
+      <div>
+        <div class="field-label">Card type:</div>
+        <input type="text" id="cardType" placeholder="Filled from fut.gg if available"/>
+      </div>
+      <div>
+        <div class="field-label">Live price:</div>
+        <input type="number" id="livePrice" placeholder="Filled from fut.gg if available"/>
+      </div>
+    </div>
+
+    <div>
+      <div class="field-label">Card image URL (optional):</div>
+      <input type="text" id="cardImageUrl" placeholder="Optional image link" oninput="updateImgPreview()"/>
     </div>
 
     <div class="row">
