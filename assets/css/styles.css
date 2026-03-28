@@ -235,6 +235,13 @@
   .imported-card .ic-price { font-weight: 900; color: var(--accent-primary); font-size: 0.9em; }
 
   /* fut.gg row */
+  .import-tools {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.5em;
+    align-items: center;
+    margin-bottom: 0.5em;
+  }
   .futgg-row { display: flex; gap: 0.5em; align-items: center; }
   .futgg-row input { flex: 1; }
   .futgg-status {
@@ -484,6 +491,9 @@
     .futgg-row {
       flex-direction: column;
       align-items: stretch;
+    }
+    .import-tools {
+      grid-template-columns: 1fr;
     }
     footer {
       font-size: 0.82em;

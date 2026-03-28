@@ -9,10 +9,11 @@ let filterMode = 'all';
 let sortMode = 'date';
 let openSort = { key: 'buyDate', dir: 'desc' };
 let leaderboardRange = 'all';
-let pendingImport = null; // Daten von der Extension
+let pendingImport = null;
 let futggPopup = null;
 const FUTGG_ORIGIN = 'https://www.fut.gg';
 const FUTGG_MESSAGE_TYPE = 'ops-futgg-import';
+const FUTGG_PROXY_PREFIX = 'https://r.jina.ai/http://';
 
 function isMobileLayout() {
   return window.matchMedia('(max-width: 768px)').matches;
@@ -40,6 +41,15 @@ function resetAll() {
   if (!confirm("Delete ALL trades?")) return;
   trades = { offene: [], abgeschlossen: [] };
   saveData(); renderAll();
+}
+
+function sanitizeHtml(value) {
+  return (value || '').toString()
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 /* ═══════════════════════════════════════════
@@ -133,6 +143,108 @@ function setBuyDatePreview(value) {
   }
 }
 
+function normalizeFutggUrl(rawUrl) {
+  const value = (rawUrl || '').trim();
+  if (!value) return null;
+
+  let candidate = value;
+  if (!/^https?:\/\//i.test(candidate)) candidate = `https://${candidate}`;
+
+  try {
+    const url = new URL(candidate);
+    if (!/(\.|^)fut\.gg$/i.test(url.hostname)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function humanizeSlug(slug) {
+  return (slug || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function parseFutggProxyText(text, pageUrl) {
+  const lines = (text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const headingLine = lines.find((line) => line.startsWith('# ')) || '';
+  const headingMatch = headingLine.match(/^#\s+(.*?)\s+(\d+)\s+OVR\s+-\s+EA FC\s+\d+/i);
+  const nameFromHeading = headingMatch ? headingMatch[1].trim() : '';
+  const ratingFromHeading = headingMatch ? headingMatch[2].trim() : '';
+
+  let cardType = '';
+  if (headingMatch) {
+    const headingIndex = lines.indexOf(headingLine);
+    for (let i = headingIndex + 1; i < Math.min(lines.length, headingIndex + 8); i += 1) {
+      const line = lines[i];
+      if (!line || /^\d+\s+OVR/i.test(line) || /^Loading/i.test(line) || line.startsWith('*') || line.startsWith('[')) continue;
+      cardType = line.replace(/\s+/g, ' ').trim();
+      break;
+    }
+  }
+
+  const priceLine = lines.find((line) => /(?:price|coins)/i.test(line) && /\d/.test(line));
+  const priceDigits = priceLine ? priceLine.replace(/[^0-9]/g, '') : '';
+  const parsedPrice = priceDigits ? Number(priceDigits) : null;
+
+  let fallbackName = '';
+  try {
+    const url = new URL(pageUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    fallbackName = humanizeSlug(parts.find((part) => /-/.test(part)) || '');
+  } catch {}
+
+  return {
+    name: nameFromHeading || fallbackName,
+    imageUrl: '',
+    cardType: [cardType, ratingFromHeading ? `${ratingFromHeading} OVR` : ''].filter(Boolean).join(' • '),
+    price: Number.isFinite(parsedPrice) ? parsedPrice : null,
+    priceRaw: priceLine || '',
+    pageUrl,
+    timestamp: Date.now()
+  };
+}
+
+async function importFromFutggUrl() {
+  const input = document.getElementById('futggUrl');
+  const parsedUrl = normalizeFutggUrl(input?.value || '');
+
+  if (!parsedUrl) {
+    setFutggStatus('Paste a valid fut.gg player link first.', 'error');
+    return;
+  }
+
+  const pageUrl = parsedUrl.toString();
+  setFutggStatus('Importing card data from the fut.gg link...', 'info');
+
+  try {
+    const proxyUrl = `${FUTGG_PROXY_PREFIX}${pageUrl.replace(/^https?:\/\//i, '')}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const text = await response.text();
+    const imported = parseFutggProxyText(text, pageUrl);
+    if (!imported.name) throw new Error('No player data found');
+
+    if (!imported.price) {
+      imported.priceRaw = imported.priceRaw || 'Live price unavailable from link import';
+    }
+
+    handleImportedData(imported);
+    setFutggStatus(imported.price
+      ? 'Card imported from the fut.gg link.'
+      : 'Card imported from the fut.gg link. Live price was not available from the page.', imported.price ? 'success' : 'info');
+  } catch (error) {
+    console.warn('fut.gg link import failed', error);
+    setFutggStatus('The fut.gg link could not be imported automatically. Check the link and try again.', 'error');
+  }
+}
+
 function toggleImportedFieldVisibility(hasImportedData) {
   const playerGroup = document.getElementById('manualPlayerNameGroup');
   const manualFields = document.getElementById('manualImportFields');
@@ -156,7 +268,7 @@ function updateImportedCardPreview(data) {
   document.getElementById('modalImportImg').style.display = data.imageUrl ? 'block' : 'none';
   document.getElementById('modalImportName').textContent = data.name || '—';
   document.getElementById('modalImportType').textContent = data.cardType || '—';
-  document.getElementById('modalImportPrice').textContent = data.price ? formatCoins(data.price) + ' Coins' : '—';
+  document.getElementById('modalImportPrice').textContent = data.price ? formatCoins(data.price) + ' Coins' : (data.priceRaw || 'Not available');
   preview.style.display = 'flex';
 }
 
@@ -182,7 +294,12 @@ function applyImportToTradeForm(data, options={}) {
 
   updateImportedCardPreview(imported);
   updateImgPreview();
-  setFutggStatus('Card imported from fut.gg. Image, type, and live market price were applied.', 'success');
+  setFutggStatus(
+    imported.price
+      ? 'Card imported from fut.gg. Image, type, and live market price were applied.'
+      : 'Card imported from fut.gg. Name and card type were applied.',
+    imported.price ? 'success' : 'info'
+  );
 }
 
 function getTradeFormPlayerName() {
@@ -200,6 +317,8 @@ function handleImportedData(data) {
   if (!imported || !imported.name) return;
 
   pendingImport = imported;
+  const futggUrlInput = document.getElementById('futggUrl');
+  if (futggUrlInput && imported.pageUrl) futggUrlInput.value = imported.pageUrl;
   showImportBanner(imported);
 
   if (document.getElementById('overlay').style.display === 'flex') {
@@ -228,7 +347,7 @@ function openFutGG() {
       window.location.href = url;
       return;
     }
-    setFutggStatus('fut.gg opened in a new tab. Import the card there, then switch back to this page.', 'info');
+    setFutggStatus('fut.gg opened in a new tab. Copy the player link there, then switch back and import it here.', 'info');
     return;
   }
 
@@ -245,7 +364,7 @@ function openFutGG() {
     return;
   }
 
-  setFutggStatus('fut.gg popup opened. Search a card there, then click the green import button on fut.gg.', 'info');
+  setFutggStatus('fut.gg popup opened. Copy the player link there, then paste it here to import.', 'info');
   futggPopup.focus();
 }
 
@@ -294,7 +413,7 @@ function inRangeBySellDate(t, r) {
    PLAYER ICON
 ═══════════════════════════════════════════ */
 function renderPlayerIcon(url) {
-  if (url) return `<img class="player-icon" src="${url}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="player-icon-placeholder" style="display:none">👤</span>`;
+  if (url) return `<img class="player-icon" src="${sanitizeHtml(url)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="player-icon-placeholder" style="display:none">👤</span>`;
   return `<span class="player-icon-placeholder">👤</span>`;
 }
 
@@ -471,6 +590,7 @@ function renderLeaderboard(){
 function showTradeModal(prefill) {
   document.getElementById('tradeFormTitle').textContent = 'Add Trade';
   document.getElementById('playerName').value = prefill?.name || '';
+  document.getElementById('futggUrl').value = prefill?.pageUrl || '';
   document.getElementById('buyPrice').value = '';
   setBuyDatePreview(nowLocalISO());
   document.getElementById('note').value = '';
@@ -479,7 +599,7 @@ function showTradeModal(prefill) {
   document.getElementById('livePrice').value = prefill?.price || '';
   document.getElementById('imgPreview').style.display = 'none';
   document.getElementById('imgPreviewText').textContent = 'After import, the card preview appears here automatically.';
-  setFutggStatus('Open fut.gg, choose your card there, then click the green import button.', 'info');
+  setFutggStatus('Open fut.gg, copy the player link, paste it here, then import the card.', 'info');
   updateImportedCardPreview(prefill);
 
   if (prefill?.imageUrl) updateImgPreview();
@@ -518,6 +638,7 @@ function editTrade(id) {
   const t=trades.offene.find(tr=>tr.id===id); if(!t) return;
   document.getElementById('tradeFormTitle').textContent='Edit Trade';
   document.getElementById('playerName').value=t.spieler;
+  document.getElementById('futggUrl').value=t.notiz && t.notiz.startsWith('fut.gg: ') ? t.notiz.replace('fut.gg: ', '') : '';
   document.getElementById('buyPrice').value=t.kaufpreis;
   setBuyDatePreview(t.kaufDatum);
   document.getElementById('note').value=t.notiz||'';
@@ -525,7 +646,7 @@ function editTrade(id) {
   document.getElementById('cardType').value=t.cardType||'';
   document.getElementById('livePrice').value=t.livePrice||'';
   updateImportedCardPreview(null);
-  setFutggStatus('Open fut.gg again if you want to refresh this card with a newer market price.', 'info');
+  setFutggStatus('Paste another fut.gg link if you want to refresh this card data.', 'info');
   currentTradeId=t.id;
   updateImgPreview();
   document.getElementById('overlay').style.display='flex';
@@ -593,15 +714,9 @@ document.querySelectorAll('.tab').forEach(tab=>{
 ═══════════════════════════════════════════ */
 function renderAll(){renderStats();renderOpenTrades();renderHistory();renderLeaderboard();}
 
-window.addEventListener('message', handleFutggMessage);
-
 window.onload=()=>{
   loadData();
   renderAll();
-  // Extension Daten prüfen
-  checkExtensionData();
-  // Alle 3 Sekunden prüfen ob neue Daten von Extension kommen
-  setInterval(checkExtensionData, 3000);
 };
 
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeTradeModal();closeSellModal();}});

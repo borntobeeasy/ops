@@ -11,10 +11,10 @@
 
 <header>
   <h1>OPS Trading Tracker</h1>
-  <p>Overpriced Selling Trading • localStorage • EA tax auto • fut.gg Extension</p>
+  <p>Overpriced Selling Trading • localStorage • EA tax auto • fut.gg link import</p>
 </header>
 
-<!-- Import Banner (erscheint wenn Extension Daten liefert) -->
+<!-- Import Banner -->
 <div id="importBanner">
   <img id="bannerImg" src="" alt=""/>
   <div class="banner-info">
@@ -126,7 +126,7 @@
   <div class="modal" id="tradeModal">
     <h3 id="tradeFormTitle">Add Trade</h3>
 
-    <!-- Extension Import Preview (sichtbar wenn Daten vorhanden) -->
+    <!-- Import Preview -->
     <div id="importedCardPreview" style="display:none" class="imported-card">
       <img id="modalImportImg" src="" alt="" onerror="this.style.display='none'"/>
       <div class="ic-info">
@@ -142,10 +142,14 @@
 
     <div>
       <div class="field-label">fut.gg Import:</div>
+      <div class="import-tools">
+        <input type="text" id="futggUrl" placeholder="Paste fut.gg player link here"/>
+        <button class="secondary" type="button" onclick="importFromFutggUrl()">Import link</button>
+      </div>
       <div class="futgg-row">
         <button class="futgg wide" onclick="openFutGG()">Open fut.gg</button>
       </div>
-      <div id="futggStatus" class="futgg-status">Open fut.gg, choose your card there, then click the green import button.</div>
+      <div id="futggStatus" class="futgg-status">Open fut.gg, copy the player link, paste it here, then import the card.</div>
     </div>
 
     <div id="imgPreviewWrap">
