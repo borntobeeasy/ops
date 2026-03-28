@@ -1,27 +1,8 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { URL } = require('url');
-
-const PORT = Number(process.env.PORT || 3000);
-const ROOT = __dirname;
 const PROXY_PREFIX = 'https://r.jina.ai/http://';
 
-const MIME_TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon'
-};
-
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(payload));
 }
 
@@ -135,33 +116,9 @@ async function importPlayer(url) {
   return parsed;
 }
 
-function serveFile(req, res) {
-  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = decodeURIComponent(requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
-  const absolutePath = path.join(ROOT, pathname);
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
 
-  if (!absolutePath.startsWith(ROOT)) {
-    sendJson(res, 403, { error: 'Forbidden' });
-    return;
-  }
-
-  fs.readFile(absolutePath, (error, buffer) => {
-    if (error) {
-      if (error.code === 'ENOENT') {
-        sendJson(res, 404, { error: 'Not found' });
-        return;
-      }
-      sendJson(res, 500, { error: 'Failed to read file' });
-      return;
-    }
-
-    const ext = path.extname(absolutePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
-    res.end(buffer);
-  });
-}
-
-function readRequestBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
     req.on('data', (chunk) => {
@@ -171,48 +128,51 @@ function readRequestBody(req) {
         req.destroy();
       }
     });
-    req.on('end', () => resolve(data));
+    req.on('end', () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
     req.on('error', reject);
   });
 }
 
-const server = http.createServer(async (req, res) => {
-  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'POST' && requestUrl.pathname === '/api/import-player') {
-    try {
-      const body = await readRequestBody(req);
-      const payload = body ? JSON.parse(body) : {};
-      const parsedUrl = normalizePlayerUrl(payload.url);
-
-      if (!parsedUrl) {
-        sendJson(res, 400, { error: 'Please provide a valid FUTBIN player link.' });
-        return;
-      }
-
-      const imported = await importPlayer(parsedUrl);
-      if (!imported.name) {
-        sendJson(res, 422, { error: 'Player data could not be extracted from the link.' });
-        return;
-      }
-
-      sendJson(res, 200, imported);
-      return;
-    } catch (error) {
-      console.error('Import endpoint failed:', error);
-      sendJson(res, 500, { error: 'Import failed.' });
-      return;
-    }
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
   }
 
-  if (req.method !== 'GET') {
+  if (req.method !== 'POST') {
     sendJson(res, 405, { error: 'Method not allowed' });
     return;
   }
 
-  serveFile(req, res);
-});
+  try {
+    const payload = await readJsonBody(req);
+    const parsedUrl = normalizePlayerUrl(payload.url);
 
-server.listen(PORT, () => {
-  console.log(`OPS Trading Tracker server running at http://localhost:${PORT}`);
-});
+    if (!parsedUrl) {
+      sendJson(res, 400, { error: 'Please provide a valid FUTBIN player link.' });
+      return;
+    }
+
+    const imported = await importPlayer(parsedUrl);
+    if (!imported.name) {
+      sendJson(res, 422, { error: 'Player data could not be extracted from the link.' });
+      return;
+    }
+
+    sendJson(res, 200, imported);
+  } catch (error) {
+    console.error('Import endpoint failed:', error);
+    sendJson(res, 500, { error: 'Import failed.' });
+  }
+};

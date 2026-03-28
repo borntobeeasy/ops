@@ -345,7 +345,7 @@ async function importFromFutggUrl() {
     );
   } catch (error) {
     console.warn('backend import failed', error);
-    setFutggStatus('Import failed. Start the local server and try again.', 'error');
+    setFutggStatus('Import failed. Check that the deployed API is reachable and try again.', 'error');
   }
 }
 
