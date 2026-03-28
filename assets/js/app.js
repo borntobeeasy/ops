@@ -323,43 +323,30 @@ async function importFromFutggUrl() {
 
   const pageUrl = parsedUrl.toString();
   setFutggStatus('Importing card data from the FUTBIN link...', 'info');
-  let imported = buildImportFromUrl(pageUrl);
 
   try {
-    const proxyUrl = `${FUTGG_PROXY_PREFIX}${pageUrl.replace(/^https?:\/\//i, '')}`;
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const response = await fetch('/api/import-player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: pageUrl })
+    });
 
-    const text = await response.text();
-    const parsedImport = parseFutbinProxyText(text, pageUrl);
-    if (parsedImport.name) imported = { ...imported, ...parsedImport };
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+
+    handleImportedData(payload);
+    setFutggStatus(
+      payload.price || payload.priceRange
+        ? 'Card imported from FUTBIN. Price and PR were applied when available.'
+        : 'The link was only partially read. Check and complete the fields if needed.',
+      payload.price || payload.priceRange ? 'success' : 'info'
+    );
   } catch (error) {
-    console.warn('futbin text import failed', error);
+    console.warn('backend import failed', error);
+    setFutggStatus('Import failed. Start the local server and try again.', 'error');
   }
-
-  try {
-    const imageUrl = await importFutbinCardImage(pageUrl);
-    if (imageUrl) imported.imageUrl = imageUrl;
-  } catch (error) {
-    console.warn('futbin image import failed', error);
-  }
-
-  if (!imported.name) {
-    setFutggStatus('The FUTBIN link could not be imported automatically. Check the link and try again.', 'error');
-    return;
-  }
-
-  if (!imported.price) {
-    imported.priceRaw = imported.priceRaw || 'Live price unavailable from link import';
-  }
-
-  handleImportedData(imported);
-  setFutggStatus(
-    imported.price || imported.priceRange
-      ? 'Card imported from FUTBIN. Price and PR were applied when available.'
-      : 'The link was only partially read. Check and complete the fields if needed.',
-    imported.price || imported.priceRange ? 'success' : 'info'
-  );
 }
 
 function toggleImportedFieldVisibility(hasImportedData) {
