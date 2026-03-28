@@ -241,19 +241,24 @@ function buildFutggAssetsUrl(pageUrl) {
 
 function extractSimpleCardImageUrl(html) {
   const source = html || '';
-  const simpleCardMatch = source.match(/https:\/\/game-assets\.fut\.gg\/[^"' ]*player-item-simple-card\/[^"' ]+\.(?:png|webp)/i);
-  if (simpleCardMatch) return simpleCardMatch[0];
+  const allAssetMatches = [...source.matchAll(/https:\/\/game-assets\.fut\.gg\/[^\s"'`)>]+?\.(?:png|webp)/ig)]
+    .map((match) => match[0]);
+  const uniqueAssetMatches = [...new Set(allAssetMatches)];
 
-  const allAssetMatches = [...source.matchAll(/https:\/\/game-assets\.fut\.gg\/[^"' ]+\.(?:png|webp)/ig)].map((match) => match[0]);
-  return allAssetMatches[2] || allAssetMatches[0] || '';
+  const preferredSmallAssets = uniqueAssetMatches.filter((url) => /simple-card|player-item-simple-card/i.test(url));
+  if (preferredSmallAssets[2]) return preferredSmallAssets[2];
+  if (preferredSmallAssets[0]) return preferredSmallAssets[0];
+
+  return uniqueAssetMatches[2] || uniqueAssetMatches[0] || '';
 }
 
 async function importSimpleCardImage(pageUrl) {
   const assetsUrl = buildFutggAssetsUrl(pageUrl);
-  const response = await fetch(assetsUrl);
+  const proxyUrl = `${FUTGG_PROXY_PREFIX}${assetsUrl.replace(/^https?:\/\//i, '')}`;
+  const response = await fetch(proxyUrl);
   if (!response.ok) throw new Error(`Asset page HTTP ${response.status}`);
-  const html = await response.text();
-  return extractSimpleCardImageUrl(html);
+  const text = await response.text();
+  return extractSimpleCardImageUrl(text);
 }
 
 async function importFromFutggUrl() {
