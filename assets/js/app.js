@@ -14,6 +14,14 @@ let futggPopup = null;
 const FUTGG_ORIGIN = 'https://www.fut.gg';
 const FUTGG_MESSAGE_TYPE = 'ops-futgg-import';
 
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function isTouchDevice() {
+  return window.matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+}
+
 function nowLocalISO() {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -212,11 +220,22 @@ function handleFutggMessage(event) {
 function openFutGG() {
   const name = getTradeFormPlayerName();
   const q = encodeURIComponent(name || '');
+  const url = `https://www.fut.gg/players/?search=${q}`;
+
+  if (isMobileLayout() || isTouchDevice()) {
+    futggPopup = window.open(url, '_blank');
+    if (!futggPopup) {
+      window.location.href = url;
+      return;
+    }
+    setFutggStatus('fut.gg opened in a new tab. Import the card there, then switch back to this page.', 'info');
+    return;
+  }
+
   const width = Math.min(window.screen.availWidth - 40, 1280);
   const height = Math.min(window.screen.availHeight - 80, 900);
   const left = Math.max(0, Math.round((window.screen.availWidth - width) / 2));
   const top = Math.max(0, Math.round((window.screen.availHeight - height) / 2));
-  const url = `https://www.fut.gg/players/?search=${q}`;
   const features = `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
 
   futggPopup = window.open(url, 'opsFutggSearch', features);
@@ -371,13 +390,13 @@ function renderOpenTrades() {
     const livePriceHtml = t.livePrice ? `<br><span style="font-size:0.78em;color:#A3FF12">Live: ${formatCoins(t.livePrice)}</span>` : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${renderPlayerIcon(t.cardImageUrl)}</td>
-      <td><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}${livePriceHtml}</td>
-      <td>${formatCoins(t.kaufpreis)}</td>
-      <td>${formatDateTime(t.kaufDatum)}</td>
-      <td>${t.cardType||'—'}</td>
-      <td>${t.notiz||''}</td>
-      <td>
+      <td class="icon-cell">${renderPlayerIcon(t.cardImageUrl)}</td>
+      <td data-label="Player"><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}${livePriceHtml}</td>
+      <td data-label="Buy Price">${formatCoins(t.kaufpreis)}</td>
+      <td data-label="Buy Date">${formatDateTime(t.kaufDatum)}</td>
+      <td data-label="Type">${t.cardType||'—'}</td>
+      <td data-label="Note">${t.notiz||''}</td>
+      <td class="actions-cell" data-label="Actions">
         <button class="secondary small" onclick="showSellModal('${t.id}')">Sell</button>
         <button class="secondary small" onclick="editTrade('${t.id}')">Edit</button>
         <button class="danger small" onclick="deleteTrade('${t.id}')">Delete</button>
@@ -415,15 +434,15 @@ function renderHistory() {
     const p=Number(t.nettoProfit)||0;
     const tr=document.createElement('tr');
     tr.innerHTML=`
-      <td>${renderPlayerIcon(t.cardImageUrl)}</td>
-      <td><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}</td>
-      <td>${formatCoins(t.kaufpreis)}</td>
-      <td>${formatDateTime(t.kaufDatum)}</td>
-      <td>${formatCoins(t.sellPrice)}</td>
-      <td>${formatDateTime(t.sellDate)}</td>
-      <td class="${p>=0?'profit-pos':'profit-neg'}">${formatCoins(p)}</td>
-      <td>${t.notiz||''}</td>
-      <td><button class="secondary small" onclick="reopenTrade('${t.id}')">Reopen</button></td>`;
+      <td class="icon-cell">${renderPlayerIcon(t.cardImageUrl)}</td>
+      <td data-label="Player"><b>${t.spieler}</b>${t.cardType?`<span class="card-badge">${t.cardType}</span>`:''}</td>
+      <td data-label="Buy Price">${formatCoins(t.kaufpreis)}</td>
+      <td data-label="Buy Date">${formatDateTime(t.kaufDatum)}</td>
+      <td data-label="Sell Price">${formatCoins(t.sellPrice)}</td>
+      <td data-label="Sell Date">${formatDateTime(t.sellDate)}</td>
+      <td data-label="Net Profit" class="${p>=0?'profit-pos':'profit-neg'}">${formatCoins(p)}</td>
+      <td data-label="Note">${t.notiz||''}</td>
+      <td class="actions-cell" data-label="Actions"><button class="secondary small" onclick="reopenTrade('${t.id}')">Reopen</button></td>`;
     tbody.appendChild(tr);
   });
 }

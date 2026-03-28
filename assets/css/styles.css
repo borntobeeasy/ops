@@ -334,3 +334,160 @@
     color: rgba(234,240,255,0.75); text-align: center; font-size: 0.9em;
   }
   footer a { color: var(--accent-primary); text-decoration: none; font-weight: 800; }
+
+  @media (max-width: 900px) {
+    #importBanner {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    #importBanner .banner-actions {
+      width: 100%;
+    }
+    #importBanner .banner-actions button {
+      flex: 1;
+    }
+    .toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .toolbar button,
+    .toolbar .muted {
+      width: 100%;
+    }
+    #tabs {
+      padding: 0 0.75em;
+    }
+    .tab {
+      min-width: 0;
+      max-width: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    body {
+      font-size: 15px;
+    }
+    header {
+      padding: 0.9em 0.85em 1em;
+      border-radius: 0 0 14px 14px;
+    }
+    header h1 {
+      font-size: 1.45em;
+    }
+    header p {
+      font-size: 0.85em;
+      line-height: 1.5;
+    }
+    #statsContainer,
+    .section {
+      padding: 0.75em;
+    }
+    #statsContainer {
+      grid-template-columns: 1fr;
+      gap: 0.75em;
+    }
+    .search-row > div {
+      min-width: 0;
+    }
+    .table-wrap {
+      border: none;
+      background: transparent;
+      overflow: visible;
+    }
+    table,
+    thead,
+    tbody,
+    tr,
+    th,
+    td {
+      display: block;
+      width: 100%;
+    }
+    thead {
+      display: none;
+    }
+    tbody {
+      display: grid;
+      gap: 0.75em;
+    }
+    tbody tr {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 18px;
+      padding: 0.2em 0;
+      overflow: hidden;
+    }
+    tbody tr:nth-child(even),
+    tbody tr:hover {
+      background: rgba(255,255,255,0.03);
+    }
+    td {
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.72em 0.9em;
+      text-align: left;
+    }
+    td:last-child {
+      border-bottom: none;
+    }
+    td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 0.3em;
+      color: var(--text-secondary);
+      font-size: 0.78em;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    td.actions-cell::before,
+    td.icon-cell::before {
+      display: none;
+    }
+    td.actions-cell {
+      display: grid;
+      gap: 0.55em;
+      padding-top: 0.85em;
+    }
+    td.actions-cell button {
+      width: 100%;
+    }
+    td.icon-cell {
+      padding-bottom: 0.2em;
+    }
+    .player-icon,
+    .player-icon-placeholder {
+      width: 52px;
+      height: 52px;
+    }
+    .modal {
+      max-width: none;
+      width: 100%;
+      max-height: calc(100vh - 20px);
+      padding: 0.9em;
+      border-radius: 18px;
+    }
+    #overlay,
+    #sellOverlay {
+      padding: 10px;
+      align-items: flex-end;
+    }
+    .modal-footer {
+      flex-direction: column;
+    }
+    .modal-footer button {
+      width: 100%;
+    }
+    .imported-card,
+    #imgPreviewWrap {
+      padding: 10px 12px;
+    }
+    .futgg-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    footer {
+      font-size: 0.82em;
+      line-height: 1.6;
+      padding-bottom: 28px;
+    }
+  }
