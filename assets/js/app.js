@@ -164,6 +164,16 @@ function applyImportToTradeForm(data, options={}) {
   setFutggStatus('Card imported from fut.gg. Image, type, and live market price were applied.', 'success');
 }
 
+function getTradeFormPlayerName() {
+  const manualValue = document.getElementById('playerName')?.value.trim() || '';
+  if (manualValue) return manualValue;
+
+  const importedValue = document.getElementById('modalImportName')?.textContent.trim() || '';
+  if (importedValue && importedValue !== '—') return importedValue;
+
+  return pendingImport?.name || '';
+}
+
 function handleImportedData(data) {
   const imported = normalizeImportData(data);
   if (!imported || !imported.name) return;
@@ -187,7 +197,7 @@ function handleFutggMessage(event) {
    FUT.GG
 ═══════════════════════════════════════════ */
 function openFutGG() {
-  const name = document.getElementById('playerName').value.trim();
+  const name = getTradeFormPlayerName();
   const q = encodeURIComponent(name || '');
   const width = Math.min(window.screen.availWidth - 40, 1280);
   const height = Math.min(window.screen.availHeight - 80, 900);
@@ -446,7 +456,7 @@ function showTradeModal(prefill) {
 function closeTradeModal() { document.getElementById('overlay').style.display='none'; }
 
 function saveTrade() {
-  const player = document.getElementById('playerName').value.trim();
+  const player = getTradeFormPlayerName();
   const buyPrice = parseFloat(document.getElementById('buyPrice').value);
   const buyDatum = document.getElementById('buyDate').value;
   const notiz = document.getElementById('note').value;
