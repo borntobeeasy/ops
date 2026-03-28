@@ -314,7 +314,12 @@ async function importSimpleCardImage(pageUrl) {
 
 async function importFromFutggUrl() {
   const input = document.getElementById('futggUrl');
-  const parsedUrl = normalizeFutggUrl(input?.value || '');
+  let rawUrl = input?.value || '';
+  if (!rawUrl.trim()) {
+    rawUrl = window.prompt('Paste the FUTBIN player link:', '') || '';
+  }
+
+  const parsedUrl = normalizeFutggUrl(rawUrl);
 
   if (!parsedUrl) {
     setFutggStatus('Paste a valid FUTBIN player link first.', 'error');
@@ -322,6 +327,7 @@ async function importFromFutggUrl() {
   }
 
   const pageUrl = parsedUrl.toString();
+  if (input) input.value = pageUrl;
   setFutggStatus('Importing card data from the FUTBIN link...', 'info');
 
   try {
