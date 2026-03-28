@@ -1,4 +1,5 @@
-const PROXY_PREFIX = 'https://r.jina.ai/http://';
+const FUTDB_API_BASE = 'https://api.futdatabase.com/api';
+const DEFAULT_PLATFORM = 'playstation';
 
 function sendJson(res, statusCode, payload) {
   res.statusCode = statusCode;
@@ -6,114 +7,23 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function humanizeSlug(slug) {
-  return (slug || '')
-    .replace(/[-_]+/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-    .trim();
+function getApiToken() {
+  return process.env.FUTDB_API_TOKEN || process.env.FUTDB_API_KEY || '';
 }
 
-function normalizePlayerUrl(rawUrl) {
-  const value = (rawUrl || '').trim();
-  if (!value) return null;
-
-  let candidate = value;
-  if (!/^https?:\/\//i.test(candidate)) {
-    candidate = `https://${candidate}`;
+function buildHeaders() {
+  const token = getApiToken();
+  if (!token) {
+    const error = new Error('FUTDB_API_TOKEN is missing.');
+    error.statusCode = 500;
+    throw error;
   }
-
-  try {
-    const parsed = new URL(candidate);
-    if (!/(\.|^)futbin\.com$/i.test(parsed.hostname)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function buildFallbackImport(pageUrl) {
-  let fallbackName = '';
-  try {
-    const parsed = new URL(pageUrl);
-    const parts = parsed.pathname.split('/').filter(Boolean);
-    fallbackName = humanizeSlug(parts.find((part) => /-/.test(part)) || '');
-  } catch {}
 
   return {
-    name: fallbackName,
-    imageUrl: '',
-    cardType: '',
-    price: null,
-    priceRange: '',
-    priceRaw: '',
-    pageUrl,
-    timestamp: Date.now()
+    'X-AUTH-TOKEN': token,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   };
-}
-
-function parseFutbinProxyText(text, pageUrl) {
-  const lines = (text || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const headingLine = lines.find((line) => line.startsWith('# ')) || '';
-  const headingMatch = headingLine.match(/^#\s+(.*?)\s+-\s+(.*?)\s+EA FC\s+\d+\s+Prices/i);
-  const nameFromHeading = headingMatch ? headingMatch[1].trim() : '';
-  const cardType = headingMatch ? headingMatch[2].trim() : '';
-
-  const trendIndex = lines.findIndex((line) => /^Trend:/i.test(line));
-  const nearby = trendIndex >= 0 ? lines.slice(trendIndex, trendIndex + 20) : [];
-  const priceLine = nearby.find((line) => /^\d[\d,.]*$/.test(line.replace(/\s/g, ''))) || '';
-  const price = priceLine ? Number(priceLine.replace(/[^0-9]/g, '')) : null;
-  const priceRangeLabelIndex = nearby.findIndex((line) => /PRICE RANGE:/i.test(line));
-  const priceRange = priceRangeLabelIndex >= 0 && nearby[priceRangeLabelIndex + 1]
-    ? nearby[priceRangeLabelIndex + 1].replace(/\s+/g, ' ').trim()
-    : '';
-
-  const fallback = buildFallbackImport(pageUrl);
-
-  return {
-    ...fallback,
-    name: nameFromHeading || fallback.name,
-    cardType,
-    price: Number.isFinite(price) ? price : null,
-    priceRange,
-    priceRaw: priceLine || ''
-  };
-}
-
-function extractFutbinCardImageUrl(html) {
-  const source = html || '';
-  const matches = [...source.matchAll(/https:\/\/cdn\.futbin\.com\/content\/fifa26\/img\/players\/[^\s"'`)>]+?\.(?:png|webp)/ig)]
-    .map((match) => match[0]);
-  return [...new Set(matches)][0] || '';
-}
-
-async function fetchProxyText(targetUrl) {
-  const proxyUrl = `${PROXY_PREFIX}${targetUrl.replace(/^https?:\/\//i, '')}`;
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`Upstream request failed with ${response.status}`);
-  }
-  return response.text();
-}
-
-async function importPlayer(url) {
-  const pageUrl = url.toString();
-  const fallback = buildFallbackImport(pageUrl);
-
-  let parsed = { ...fallback };
-  try {
-    const text = await fetchProxyText(pageUrl);
-    parsed = { ...parsed, ...parseFutbinProxyText(text, pageUrl) };
-    const imageUrl = extractFutbinCardImageUrl(text);
-    if (imageUrl) parsed.imageUrl = imageUrl;
-  } catch (error) {
-    console.warn('Player import warning:', error.message);
-  }
-
-  return parsed;
 }
 
 async function readJsonBody(req) {
@@ -139,6 +49,187 @@ async function readJsonBody(req) {
   });
 }
 
+function normalizeInputUrl(rawUrl) {
+  const value = (rawUrl || '').trim();
+  if (!value) return null;
+
+  let candidate = value;
+  if (!/^https?:\/\//i.test(candidate)) candidate = `https://${candidate}`;
+
+  try {
+    return new URL(candidate);
+  } catch {
+    return null;
+  }
+}
+
+function humanizeSlug(slug) {
+  return (slug || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function extractLookupData(parsedUrl) {
+  const host = parsedUrl.hostname.toLowerCase();
+  const path = parsedUrl.pathname.split('/').filter(Boolean);
+
+  if (host.endsWith('futbin.com')) {
+    const slug = path[path.length - 1] || '';
+    const futBinId = Number(path[path.length - 2]);
+    return {
+      sourceUrl: parsedUrl.toString(),
+      sourceLabel: 'futbin',
+      nameQuery: humanizeSlug(slug),
+      futBinId: Number.isFinite(futBinId) ? futBinId : null
+    };
+  }
+
+  if (host.endsWith('futdatabase.com')) {
+    const slug = path[path.length - 1] || '';
+    return {
+      sourceUrl: parsedUrl.toString(),
+      sourceLabel: 'futdb',
+      nameQuery: humanizeSlug(slug),
+      futBinId: null
+    };
+  }
+
+  return {
+    sourceUrl: parsedUrl.toString(),
+    sourceLabel: host,
+    nameQuery: humanizeSlug(path[path.length - 1] || ''),
+    futBinId: null
+  };
+}
+
+async function futdbFetch(path, options = {}) {
+  const response = await fetch(`${FUTDB_API_BASE}${path}`, {
+    ...options,
+    headers: {
+      ...buildHeaders(),
+      ...(options.headers || {})
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const error = new Error(text || `FutDB request failed with ${response.status}`);
+    error.statusCode = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+function buildSearchBody(lookup) {
+  return {
+    name: lookup.nameQuery || null
+  };
+}
+
+function scorePlayerCandidate(player, lookup) {
+  if (!player) return -1;
+
+  const candidateName = (player.name || player.commonName || '').toLowerCase().trim();
+  const wantedName = (lookup.nameQuery || '').toLowerCase().trim();
+  let score = 0;
+
+  if (lookup.futBinId && Number(player.futBinId) === Number(lookup.futBinId)) score += 100;
+  if (candidateName === wantedName) score += 40;
+  if (candidateName.includes(wantedName) || wantedName.includes(candidateName)) score += 20;
+  if (player.rating) score += Number(player.rating) / 100;
+
+  return score;
+}
+
+async function findBestPlayer(lookup) {
+  const searchResponse = await futdbFetch('/players/search?page=1', {
+    method: 'POST',
+    body: JSON.stringify(buildSearchBody(lookup))
+  });
+
+  const items = Array.isArray(searchResponse.items) ? searchResponse.items : [];
+  if (!items.length) return null;
+
+  return items
+    .map((player) => ({ player, score: scorePlayerCandidate(player, lookup) }))
+    .sort((left, right) => right.score - left.score)[0]
+    ?.player || null;
+}
+
+async function fetchPlayerPrice(playerId) {
+  try {
+    const response = await futdbFetch(`/players/${playerId}/price`);
+    return response?.[DEFAULT_PLATFORM] || null;
+  } catch (error) {
+    if (error.statusCode === 401 || error.statusCode === 402 || error.statusCode === 403) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+function formatPriceRange(priceInfo) {
+  if (!priceInfo) return '';
+  const min = Number(priceInfo.minPrice);
+  const max = Number(priceInfo.maxPrice);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return '';
+  return `${min.toLocaleString('en-US')} - ${max.toLocaleString('en-US')}`;
+}
+
+function formatCardType(player) {
+  const parts = [];
+  if (player.rating) parts.push(`${player.rating}`);
+  if (player.position) parts.push(player.position);
+  if (player.version) parts.push(player.version.toUpperCase());
+  return parts.join(' ').trim();
+}
+
+function buildPlayerImageUrl(playerId) {
+  return `/api/player-image?playerId=${encodeURIComponent(playerId)}`;
+}
+
+async function importPlayer(rawUrl) {
+  const parsedUrl = normalizeInputUrl(rawUrl);
+  if (!parsedUrl) {
+    const error = new Error('Please provide a valid player link.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const lookup = extractLookupData(parsedUrl);
+  if (!lookup.nameQuery) {
+    const error = new Error('The player name could not be derived from the link.');
+    error.statusCode = 422;
+    throw error;
+  }
+
+  const player = await findBestPlayer(lookup);
+  if (!player || !player.id) {
+    const error = new Error('No FutDB player matched this link.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const priceInfo = await fetchPlayerPrice(player.id);
+
+  return {
+    name: player.name || player.commonName || lookup.nameQuery,
+    imageUrl: buildPlayerImageUrl(player.id),
+    cardType: formatCardType(player),
+    price: Number.isFinite(Number(priceInfo?.price)) ? Number(priceInfo.price) : null,
+    priceRange: formatPriceRange(priceInfo),
+    priceRaw: Number.isFinite(Number(priceInfo?.price)) ? String(priceInfo.price) : '',
+    pageUrl: lookup.sourceUrl,
+    playerId: Number(player.id),
+    source: 'futdb',
+    platform: DEFAULT_PLATFORM,
+    lastPriceSync: priceInfo?.priceUpdate || '',
+    timestamp: Date.now()
+  };
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -157,22 +248,12 @@ module.exports = async (req, res) => {
 
   try {
     const payload = await readJsonBody(req);
-    const parsedUrl = normalizePlayerUrl(payload.url);
-
-    if (!parsedUrl) {
-      sendJson(res, 400, { error: 'Please provide a valid FUTBIN player link.' });
-      return;
-    }
-
-    const imported = await importPlayer(parsedUrl);
-    if (!imported.name) {
-      sendJson(res, 422, { error: 'Player data could not be extracted from the link.' });
-      return;
-    }
-
+    const imported = await importPlayer(payload.url);
     sendJson(res, 200, imported);
   } catch (error) {
     console.error('Import endpoint failed:', error);
-    sendJson(res, 500, { error: 'Import failed.' });
+    sendJson(res, error.statusCode || 500, {
+      error: error.message || 'Import failed.'
+    });
   }
 };

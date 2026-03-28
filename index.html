@@ -43,6 +43,7 @@
 <div class="section active" id="sectionPortfolio">
   <div class="toolbar">
     <button class="primary" onclick="showTradeModal()">Add Buy</button>
+    <button class="secondary" onclick="refreshOpenTradePrices()">Refresh Prices</button>
     <button class="secondary" onclick="exportData()">Backup</button>
     <button class="secondary" onclick="document.getElementById('importFile').click()">Import Backup</button>
     <input type="file" id="importFile" style="display:none" accept=".json" onchange="importData(event)">
@@ -173,6 +174,10 @@
 
     <div class="manual-import-fields is-hidden">
       <input type="hidden" id="cardImageUrl"/>
+      <input type="hidden" id="playerId"/>
+      <input type="hidden" id="sourceSystem"/>
+      <input type="hidden" id="pricePlatform"/>
+      <input type="hidden" id="lastPriceSync"/>
     </div>
 
     <div class="row">

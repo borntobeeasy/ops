@@ -110,6 +110,7 @@ function useBannerData() {
 function normalizeImportData(data) {
   if (!data || typeof data !== 'object') return null;
   const price = Number(data.price);
+  const playerId = Number(data.playerId);
   return {
     name: (data.name || '').toString().trim(),
     imageUrl: (data.imageUrl || '').toString().trim(),
@@ -117,6 +118,10 @@ function normalizeImportData(data) {
     price: Number.isFinite(price) ? price : null,
     priceRange: (data.priceRange || '').toString().trim(),
     priceRaw: data.priceRaw || '',
+    playerId: Number.isFinite(playerId) ? playerId : null,
+    source: (data.source || '').toString().trim(),
+    platform: (data.platform || '').toString().trim(),
+    lastPriceSync: (data.lastPriceSync || '').toString().trim(),
     pageUrl: data.pageUrl || '',
     timestamp: data.timestamp || Date.now()
   };
@@ -141,6 +146,23 @@ function setBuyDatePreview(value) {
     preview.textContent = new Date(effectiveValue).toLocaleString();
   } catch {
     preview.textContent = effectiveValue;
+  }
+}
+
+function setImportMetadata(data = {}) {
+  const normalized = normalizeImportData(data) || {};
+  document.getElementById('playerId').value = normalized.playerId || '';
+  document.getElementById('sourceSystem').value = normalized.source || '';
+  document.getElementById('pricePlatform').value = normalized.platform || '';
+  document.getElementById('lastPriceSync').value = normalized.lastPriceSync || '';
+}
+
+function formatPriceSync(value) {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return value;
   }
 }
 
@@ -328,7 +350,7 @@ async function importFromFutggUrl() {
 
   const pageUrl = parsedUrl.toString();
   if (input) input.value = pageUrl;
-  setFutggStatus('Importing card data from the FUTBIN link...', 'info');
+  setFutggStatus('Importing player data via FutDB...', 'info');
 
   try {
     const response = await fetch('/api/import-player', {
@@ -345,13 +367,13 @@ async function importFromFutggUrl() {
     handleImportedData(payload);
     setFutggStatus(
       payload.price || payload.priceRange
-        ? 'Card imported from FUTBIN. Price and PR were applied when available.'
-        : 'The link was only partially read. Check and complete the fields if needed.',
+        ? 'Card imported via FutDB. Price and PR were applied.'
+        : 'The player was imported via FutDB. Price data was not available for this card.',
       payload.price || payload.priceRange ? 'success' : 'info'
     );
   } catch (error) {
     console.warn('backend import failed', error);
-    setFutggStatus('Import failed. Check that the deployed API is reachable and try again.', 'error');
+    setFutggStatus(error.message || 'Import failed. Check the deployed API and your FutDB setup.', 'error');
   }
 }
 
@@ -400,13 +422,14 @@ function applyImportToTradeForm(data, options={}) {
   cardType.value = imported.cardType || cardType.value;
   if (imported.price) livePrice.value = imported.price;
   if (imported.priceRange) priceRange.value = imported.priceRange;
+  setImportMetadata(imported);
 
   updateImportedCardPreview(imported);
   updateImgPreview();
   setFutggStatus(
     imported.price
-      ? 'Card imported from FUTBIN. Image, type, price and PR were applied.'
-      : 'Card imported from FUTBIN. Name and type were applied.',
+      ? 'Card imported via FutDB. Image, type, price and PR were applied.'
+      : 'Card imported via FutDB. Name and type were applied.',
     imported.price || imported.priceRange ? 'success' : 'info'
   );
 }
@@ -617,10 +640,11 @@ function renderOpenTrades() {
   list.forEach(t => {
     const livePriceHtml = t.livePrice ? `<br><span style="font-size:0.78em;color:#A3FF12">Price: ${formatCoins(t.livePrice)}</span>` : '';
     const priceRangeHtml = t.priceRange ? `<br><span style="font-size:0.78em;color:#c9dcff">PR: ${sanitizeHtml(t.priceRange)}</span>` : '';
+    const syncHtml = t.lastPriceSync ? `<br><span style="font-size:0.75em;color:#8e9bb3">Updated: ${sanitizeHtml(formatPriceSync(t.lastPriceSync))}</span>` : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="icon-cell">${renderPlayerIcon(t.cardImageUrl)}</td>
-      <td data-label="Player"><b>${sanitizeHtml(t.spieler)}</b>${t.cardType?`<span class="card-badge">${sanitizeHtml(t.cardType)}</span>`:''}${livePriceHtml}${priceRangeHtml}</td>
+      <td data-label="Player"><b>${sanitizeHtml(t.spieler)}</b>${t.cardType?`<span class="card-badge">${sanitizeHtml(t.cardType)}</span>`:''}${livePriceHtml}${priceRangeHtml}${syncHtml}</td>
       <td data-label="Buy Price">${formatCoins(t.kaufpreis)}</td>
       <td data-label="Buy Date">${formatDateTime(t.kaufDatum)}</td>
       <td data-label="Type">${sanitizeHtml(t.cardType||'—')}</td>
@@ -710,9 +734,10 @@ function showTradeModal(prefill) {
   document.getElementById('cardType').value = prefill?.cardType || '';
   document.getElementById('livePrice').value = prefill?.price || '';
   document.getElementById('priceRange').value = prefill?.priceRange || '';
+  setImportMetadata(prefill);
   document.getElementById('imgPreview').style.display = 'none';
   document.getElementById('imgPreviewText').textContent = 'After import, the card preview appears here automatically.';
-  setFutggStatus('Open FUTBIN, copy the player link, paste it here, then import the card.', 'info');
+  setFutggStatus('Open FUTBIN, copy the player link, then import it. The player data comes from FutDB.', 'info');
   updateImportedCardPreview(prefill);
 
   if (prefill?.imageUrl) updateImgPreview();
@@ -734,10 +759,14 @@ function saveTrade() {
   const cardType = document.getElementById('cardType').value.trim();
   const livePrice = parseFloat(document.getElementById('livePrice').value) || null;
   const priceRange = document.getElementById('priceRange').value.trim();
+  const playerId = Number(document.getElementById('playerId').value) || null;
+  const source = document.getElementById('sourceSystem').value.trim();
+  const platform = document.getElementById('pricePlatform').value.trim();
+  const lastPriceSync = document.getElementById('lastPriceSync').value.trim();
 
-  if(!player||isNaN(buyPrice)){alert('Please import a player from FUTBIN and enter your buy price.');return;}
+  if(!player||isNaN(buyPrice)){alert('Please import a player and enter your buy price.');return;}
 
-  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, sourceUrl, cardImageUrl, cardType, livePrice, priceRange };
+  const tradeData = { spieler:player, kaufpreis:buyPrice, kaufDatum:buyDatum, notiz, sourceUrl, cardImageUrl, cardType, livePrice, priceRange, playerId, source, platform, lastPriceSync };
 
   if(currentTradeId) {
     const idx=trades.offene.findIndex(t=>t.id===currentTradeId);
@@ -761,14 +790,76 @@ function editTrade(id) {
   document.getElementById('cardType').value=t.cardType||'';
   document.getElementById('livePrice').value=t.livePrice||'';
   document.getElementById('priceRange').value=t.priceRange||'';
-  updateImportedCardPreview(null);
-  setFutggStatus('Paste another FUTBIN link if you want to refresh this card data.', 'info');
+  setImportMetadata(t);
+  updateImportedCardPreview({
+    name: t.spieler,
+    imageUrl: t.cardImageUrl || '',
+    cardType: t.cardType || '',
+    price: t.livePrice || null,
+    priceRange: t.priceRange || '',
+    lastPriceSync: t.lastPriceSync || '',
+    pageUrl: t.sourceUrl || ''
+  });
+  setFutggStatus('Paste another FUTBIN link if you want to re-import this card from FutDB.', 'info');
   currentTradeId=t.id;
   updateImgPreview();
   document.getElementById('overlay').style.display='flex';
 }
 
 function deleteTrade(id){if(!confirm('Delete this trade?'))return;trades.offene=trades.offene.filter(t=>t.id!==id);saveData();renderAll();}
+
+async function refreshOpenTradePrices() {
+  const refreshableTrades = trades.offene
+    .filter((trade) => Number.isFinite(Number(trade.playerId)) && Number(trade.playerId) > 0)
+    .map((trade) => ({
+      id: trade.id,
+      playerId: Number(trade.playerId)
+    }));
+
+  if (!refreshableTrades.length) {
+    alert('There are no open trades with a FutDB player ID yet. Import a player first.');
+    return;
+  }
+
+  const button = [...document.querySelectorAll('.toolbar button')]
+    .find((candidate) => candidate.textContent.trim() === 'Refresh Prices');
+  if (button) button.disabled = true;
+
+  try {
+    const response = await fetch('/api/refresh-prices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trades: refreshableTrades })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || `HTTP ${response.status}`);
+    }
+
+    const updates = Array.isArray(payload.updates) ? payload.updates : [];
+    let updatedCount = 0;
+
+    updates.forEach((update) => {
+      const trade = trades.offene.find((entry) => entry.id === update.id);
+      if (!trade) return;
+      if (Number.isFinite(Number(update.livePrice))) trade.livePrice = Number(update.livePrice);
+      if (typeof update.priceRange === 'string') trade.priceRange = update.priceRange;
+      if (typeof update.lastPriceSync === 'string') trade.lastPriceSync = update.lastPriceSync;
+      if (typeof update.platform === 'string' && update.platform) trade.platform = update.platform;
+      updatedCount += 1;
+    });
+
+    saveData();
+    renderAll();
+    alert(updatedCount ? `${updatedCount} open trade prices were refreshed.` : 'No price updates were returned.');
+  } catch (error) {
+    console.warn('price refresh failed', error);
+    alert(error.message || 'Price refresh failed.');
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
 
 /* ═══════════════════════════════════════════
    SELL MODAL
